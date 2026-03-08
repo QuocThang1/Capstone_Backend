@@ -6,6 +6,7 @@ const http = require('http')
 const errorHandlingMiddleware = require('./middleware/errorHandling')
 
 const accountRouter = require('./routes/accountRoutes')
+const userRouter = require('./routes/userRoutes')
 
 const connection = require("./config/database");
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/v1/api/account', accountRouter);
+app.use('/v1/api/users', userRouter);
 
 app.use(errorHandlingMiddleware);
 

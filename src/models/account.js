@@ -37,6 +37,10 @@ const accountSchema = new mongoose.Schema(
             enum: ["male", "female", "other"],
             required: false,
         },
+        active: {
+            type: Boolean,
+            default: true,
+        },
     },
     {
         timestamps: true,

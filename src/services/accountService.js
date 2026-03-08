@@ -42,6 +42,10 @@ const handleLoginService = async (username, password) => {
         throw new ApiError(StatusCodes.UNAUTHORIZED, "Username or Password is not correct");
     }
 
+    if (!user.active) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Your account has been deactivated. Please contact administrator");
+    }
+
     if (!user.password) {
         throw new ApiError(StatusCodes.UNAUTHORIZED, "Username or Password is not correct");
     }
