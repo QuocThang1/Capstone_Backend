@@ -50,14 +50,6 @@ const projectSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
-        startDate: {
-            type: Date,
-            required: false,
-        },
-        endDate: {
-            type: Date,
-            required: false, // Ngày dự kiến kết thúc toàn bộ dự án
-        },
     },
     {
         timestamps: true,
