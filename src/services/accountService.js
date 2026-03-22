@@ -7,7 +7,10 @@ const { StatusCodes } = require("http-status-codes");
 const saltRounds = 10;
 
 const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender }) => {
-    const existingUser = await accountDAO.findByUsername(username);
+    // If username is not provided, generate it from email (first part before @)
+    const finalUsername = username || email.split('@')[0];
+    
+    const existingUser = await accountDAO.findByUsername(finalUsername);
     const existingEmail = await accountDAO.findByEmail(email);
 
     if (existingEmail) {
@@ -22,7 +25,7 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
 
     const newUserData = {
         role: "user",
-        username,
+        username: finalUsername,
         password: hashedPassword,
         fullName,
         email,
@@ -35,9 +38,14 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
     return newUser;
 };
 
-const handleLoginService = async (username, password) => {
+const handleLoginService = async (usernameOrEmail, password) => {
+    // Support both username and email login
+    let user = await accountDAO.findByUsername(usernameOrEmail);
+    
+    if (!user) {
+        user = await accountDAO.findByEmail(usernameOrEmail);
+    }
 
-    const user = await accountDAO.findByUsername(username);
     if (!user) {
         throw new ApiError(StatusCodes.UNAUTHORIZED, "Username or Password is not correct");
     }
