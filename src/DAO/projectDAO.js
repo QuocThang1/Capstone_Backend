@@ -34,6 +34,13 @@ class ProjectDAO {
             .populate('members.accountId', 'username fullName email');
     }
 
+    async findProjectByNameForUser(name, userId) {
+        return await Project.findOne({
+            name: { $regex: `^${name}$`, $options: 'i' },
+            'members.accountId': userId
+        });
+    }
+
     async updateProject(projectId, updateData) {
         return await Project.findByIdAndUpdate(
             projectId,
