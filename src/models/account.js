@@ -7,11 +7,6 @@ const accountSchema = new mongoose.Schema(
             enum: ["admin", "user"],
             default: "user",
         },
-        username: {
-            type: String,
-            required: true,
-            unique: true,
-        },
         password: {
             type: String,
             required: false,
