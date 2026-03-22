@@ -9,7 +9,6 @@ const projectSchema = new mongoose.Schema(
         key: {
             type: String,
             required: true,
-            unique: true,
             uppercase: true, // VD: "HRM"
         },
         description: {
