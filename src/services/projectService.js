@@ -5,10 +5,10 @@ const { StatusCodes } = require("http-status-codes");
 const createProjectService = async (projectData, creatorId) => {
     const { name, key, description, boardColumns, issueTypes } = projectData;
 
-    // Kiểm tra key đã tồn tại chưa
-    const existingProject = await projectDAO.getProjectByKey(key);
+    // Kiểm tra trùng tên project của chính user đó
+    const existingProject = await projectDAO.findProjectByNameForUser(name, creatorId);
     if (existingProject) {
-        throw new ApiError(StatusCodes.CONFLICT, "Project key already exists");
+        throw new ApiError(StatusCodes.CONFLICT, "You already have a project with this name");
     }
 
     // Validate key format (chỉ chứa chữ cái và số, 2-10 ký tự)
@@ -40,7 +40,7 @@ const createProjectService = async (projectData, creatorId) => {
         members: [
             {
                 accountId: creatorId,
-                role: "member"
+                role: "leader"
             }
         ],
         issueSequence: 0
@@ -103,19 +103,21 @@ const updateProjectService = async (projectId, updateData, userId, userRole) => 
         }
     }
 
-    // Nếu update key, kiểm tra trùng
-    if (updateData.key && updateData.key.toUpperCase() !== project.key) {
-        const existingProject = await projectDAO.getProjectByKey(updateData.key);
-        if (existingProject) {
-            throw new ApiError(StatusCodes.CONFLICT, "Project key already exists");
+    // Nếu update name, kiểm tra trùng tên trong các project của user
+    if (updateData.name && updateData.name !== project.name) {
+        const existingProject = await projectDAO.findProjectByNameForUser(updateData.name, userId);
+        // Phải đảm bảo project tìm thấy không phải là chính project đang update
+        if (existingProject && existingProject._id.toString() !== projectId) {
+            throw new ApiError(StatusCodes.CONFLICT, "You already have a project with this name");
         }
+    }
 
-        // Validate key format
+    // Nếu update key, chỉ validate format, không check trùng
+    if (updateData.key) {
         const keyRegex = /^[A-Z0-9]{2,10}$/;
         if (!keyRegex.test(updateData.key.toUpperCase())) {
             throw new ApiError(StatusCodes.BAD_REQUEST, "Project key must be 2-10 uppercase letters or numbers");
         }
-
         updateData.key = updateData.key.toUpperCase();
     }
 
