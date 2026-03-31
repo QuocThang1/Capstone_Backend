@@ -143,10 +143,6 @@ const deleteProjectService = async (projectId, userId, userRole) => {
     return { message: "Project deleted successfully" };
 };
 
-const getMyProjectsService = async (userId) => {
-    const projects = await projectDAO.getProjectsByMember(userId);
-    return projects;
-};
 
 module.exports = {
     createProjectService,
@@ -154,5 +150,4 @@ module.exports = {
     getProjectByIdService,
     updateProjectService,
     deleteProjectService,
-    getMyProjectsService,
 };

@@ -4,7 +4,6 @@ const {
     getProjectByIdService,
     updateProjectService,
     deleteProjectService,
-    getMyProjectsService,
 } = require("../services/projectService");
 const { StatusCodes } = require("http-status-codes");
 
@@ -96,26 +95,10 @@ const deleteProject = async (req, res, next) => {
     }
 };
 
-const getMyProjects = async (req, res, next) => {
-    try {
-        const userId = req.user._id;
-        const projects = await getMyProjectsService(userId);
-
-        return res.status(StatusCodes.OK).json({
-            EC: 0,
-            EM: "Success",
-            data: projects
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
 module.exports = {
     createProject,
     getAllProjects,
     getProjectById,
     updateProject,
     deleteProject,
-    getMyProjects,
 };
