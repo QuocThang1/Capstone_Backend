@@ -1,4 +1,3 @@
-require("dotenv").config();
 const mongoose = require("mongoose");
 
 const dbState = [
@@ -10,25 +9,48 @@ const dbState = [
 
 const connection = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_DB_URL);
+        // Strict URI Validation
+        const dbUri = process.env.MONGO_DB_URL;
+        if (!dbUri || typeof dbUri !== 'string') {
+            console.error("\n ERROR: MONGO_DB_URL is missing or invalid in .env file.");
+            console.error("   Make sure your .env file contains: MONGO_DB_URL=mongodb+srv://...");
+            process.exit(1);
+        }
+
+        // Standardized Mongoose Connection
+        await mongoose.connect(dbUri, {
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            retryWrites: true,
+            w: 'majority',
+        });
+
+        // Success Log (hide credentials, show host)
+        const dbHost = dbUri.split('@')[1] || 'localhost';
+        console.log(`\n MongoDB Connected to: ${dbHost}`);
 
         // Handle connection errors and disconnects
         mongoose.connection.on("error", (err) => {
-            console.error("MongoDB connection error:", err);
+            console.error("\n MongoDB connection error:", err.message);
             process.exit(1);
         });
 
         mongoose.connection.on("disconnected", () => {
-            console.error("MongoDB disconnected unexpectedly");
+            console.error("\n MongoDB disconnected unexpectedly");
             process.exit(1);
         });
 
         const state = mongoose.connection.readyState;
-        console.log(
-            `MongoDB status: ${dbState.find((f) => f.value === state).label}`,
-        );
+        console.log(`Status: ${dbState.find((f) => f.value === state).label}`);
     } catch (error) {
-        console.error("Error connecting to DB:", error.message);
+        console.error("\n Error connecting to MongoDB:", error.message);
+        if (error.name === 'MongoNetworkError') {
+            console.error("Network Error: Check your MONGO_DB_URL and internet connection.");
+        } else if (error.name === 'MongoAuthenticationError') {
+            console.error("Authentication Error: Check your MongoDB credentials in .env.");
+        }
         process.exit(1);
     }
 };
