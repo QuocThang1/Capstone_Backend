@@ -10,7 +10,6 @@ const issueSchema = new mongoose.Schema(
         sprintId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Sprint",
-            default: null, // null nghĩa là thẻ đang nằm ở phần Backlog chung
         },
         issueKey: {
             type: String,

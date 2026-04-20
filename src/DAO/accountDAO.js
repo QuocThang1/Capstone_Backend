@@ -17,6 +17,10 @@ class AccountDAO {
     async getAccountByID(userId) {
         return await Account.findById(userId)
             .select("-password")
+            .populate({
+                path: 'starredProjects',
+                select: 'name key description members' // Chọn các trường cần thiết của project
+            });
     }
 
     async updatePassword(userId, hashedPassword) {
@@ -34,6 +38,22 @@ class AccountDAO {
             { new: true, runValidators: true }
         )
             .select('-password');
+    }
+
+    async starProject(accountId, projectId) {
+        return await Account.findByIdAndUpdate(
+            accountId,
+            { $addToSet: { starredProjects: projectId } }, // $addToSet để tránh trùng lặp
+            { new: true }
+        );
+    }
+
+    async unstarProject(accountId, projectId) {
+        return await Account.findByIdAndUpdate(
+            accountId,
+            { $pull: { starredProjects: projectId } }, // $pull để xóa
+            { new: true }
+        );
     }
 }
 

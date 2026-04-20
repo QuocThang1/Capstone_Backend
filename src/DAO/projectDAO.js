@@ -59,11 +59,28 @@ class ProjectDAO {
         }).populate('members.accountId', 'username fullName email');
     }
 
+    async isMemberOfProject(projectId, accountId) {
+        const project = await Project.findOne({
+            _id: projectId,
+            'members.accountId': accountId
+        });
+        return !!project;
+    }
+
     async checkMemberExists(projectId, accountId) {
         return await Project.findOne({
             _id: projectId,
             'members.accountId': accountId
         });
+    }
+
+    async addMember(projectId, accountId, role = 'member') {
+        const newMember = { accountId, role };
+        return await Project.findByIdAndUpdate(
+            projectId,
+            { $push: { members: newMember } },
+            { new: true }
+        ).populate('members.accountId', 'username fullName email');
     }
 
     async incrementIssueSequence(projectId) {

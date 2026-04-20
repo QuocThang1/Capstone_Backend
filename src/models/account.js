@@ -36,6 +36,10 @@ const accountSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        starredProjects: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Project"
+        }]
     },
     {
         timestamps: true,
