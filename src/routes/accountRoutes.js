@@ -6,6 +6,8 @@ const {
     updateProfile,
     sendOTP,
     verifyOTP,
+    toggleStarProject,
+    getStarredProjects
 } = require("../controllers/accountController");
 const auth = require("../middleware/auth");
 
@@ -17,6 +19,8 @@ routerAPI.get("/get-account", auth, getAccount);
 routerAPI.put("/profile", auth, updateProfile);
 routerAPI.post("/send-otp", sendOTP);
 routerAPI.post("/verify-otp", verifyOTP);
+routerAPI.post("/toggle-star", auth, toggleStarProject);
+routerAPI.get("/starred-projects", auth, getStarredProjects);
 
 
 module.exports = routerAPI;

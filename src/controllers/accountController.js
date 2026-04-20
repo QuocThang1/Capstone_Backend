@@ -3,6 +3,8 @@ const {
     handleLoginService,
     getAccountService,
     updateProfileService,
+    toggleStarProjectService,
+    getStarredProjectsService
 } = require("../services/accountService");
 const { StatusCodes } = require("http-status-codes");
 const OTP = require("../models/otp");
@@ -35,7 +37,7 @@ const handleSignUp = async (req, res, next) => {
 const handleLogin = async (req, res, next) => {
     try {
         const { usernameOrEmail, password, username } = req.body;
-        
+
         // Support both old (username) and new (usernameOrEmail) formats
         const loginIdentifier = usernameOrEmail || username;
 
@@ -198,6 +200,41 @@ const verifyOTP = async (req, res, next) => {
     }
 };
 
+const toggleStarProject = async (req, res, next) => {
+    try {
+        const accountId = req.user._id;
+        const { projectId } = req.body;
+
+        if (!projectId) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, "Project ID is required.");
+        }
+
+        const result = await toggleStarProjectService(accountId, projectId);
+
+        res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: result.message,
+            data: result.starredProjects
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const getStarredProjects = async (req, res, next) => {
+    try {
+        const accountId = req.user._id;
+        const projects = await getStarredProjectsService(accountId);
+        res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Success",
+            data: projects
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     handleSignUp,
     handleLogin,
@@ -205,4 +242,6 @@ module.exports = {
     updateProfile,
     sendOTP,
     verifyOTP,
+    toggleStarProject,
+    getStarredProjects
 };

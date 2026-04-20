@@ -10,6 +10,8 @@ const errorHandlingMiddleware = require('./middleware/errorHandling')
 const accountRouter = require('./routes/accountRoutes')
 const userRouter = require('./routes/userRoutes')
 const projectRouter = require('./routes/projectRoutes')
+const sprintRouter = require('./routes/sprintRoutes')
+const issueRouter = require('./routes/issueRoutes')
 
 const connection = require("./config/database");
 
@@ -26,6 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/v1/api/account', accountRouter);
 app.use('/v1/api/users', userRouter);
 app.use('/v1/api/projects', projectRouter);
+app.use('/v1/api/sprints', sprintRouter);
+app.use('/v1/api/issues', issueRouter);
+
 
 app.use(errorHandlingMiddleware);
 

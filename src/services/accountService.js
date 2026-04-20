@@ -1,4 +1,5 @@
 const accountDAO = require("../DAO/accountDAO");
+const projectDAO = require("../DAO/projectDAO");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/ApiError");
@@ -9,7 +10,7 @@ const saltRounds = 10;
 const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender }) => {
     // If username is not provided, generate it from email (first part before @)
     const finalUsername = username || email.split('@')[0];
-    
+
     const existingUser = await accountDAO.findByUsername(finalUsername);
     const existingEmail = await accountDAO.findByEmail(email);
 
@@ -41,7 +42,7 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
 const handleLoginService = async (usernameOrEmail, password) => {
     // Support both username and email login
     let user = await accountDAO.findByUsername(usernameOrEmail);
-    
+
     if (!user) {
         user = await accountDAO.findByEmail(usernameOrEmail);
     }
@@ -119,10 +120,53 @@ const updateProfileService = async (userId, { username, fullName, email, phone, 
     return updatedUser;
 };
 
+const toggleStarProjectService = async (accountId, projectId) => {
+    // Lấy thông tin tài khoản để xem danh sách đã star
+    const account = await accountDAO.getAccountByID(accountId);
+    if (!account) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Account not found.");
+    }
+
+    // Kiểm tra xem user có phải là thành viên của project không
+    const projectMember = await projectDAO.checkMemberExists(projectId, accountId);
+    if (!projectMember) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You can only star projects you are a member of.");
+    }
+
+    const isCurrentlyStarred = account.starredProjects.some(project => project._id.toString() === projectId);
+
+    let updatedAccount;
+    let message;
+
+    if (isCurrentlyStarred) {
+        // Nếu đã star -> unstar
+        updatedAccount = await accountDAO.unstarProject(accountId, projectId);
+        message = "Project unstarred successfully.";
+    } else {
+        // Nếu chưa star -> star
+        updatedAccount = await accountDAO.starProject(accountId, projectId);
+        message = "Project starred successfully.";
+    }
+
+    return {
+        message,
+        starredProjects: updatedAccount.starredProjects
+    };
+};
+
+const getStarredProjectsService = async (accountId) => {
+    const account = await accountDAO.getAccountByID(accountId);
+    if (!account) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Account not found.");
+    }
+    return account.starredProjects;
+};
 
 module.exports = {
     handleSignUpService,
     handleLoginService,
     getAccountService,
     updateProfileService,
+    toggleStarProjectService,
+    getStarredProjectsService,
 };
