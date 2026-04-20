@@ -1,6 +1,10 @@
 const { createIssueService,
     getIssuesBySprintService,
-    getIssuesByProjectService
+    getIssuesByProjectService,
+    updateIssueService,
+    deleteIssueService,
+    createSubtaskService,
+    getSubtasksService
 } = require("../services/issueService");
 const { StatusCodes } = require("http-status-codes");
 
@@ -43,8 +47,81 @@ const getIssuesByProject = async (req, res, next) => {
     }
 };
 
+const updateIssue = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const updateData = req.body;
+        const userId = req.user._id;
+
+        const updatedIssue = await updateIssueService(issueId, updateData, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Issue updated successfully",
+            data: updatedIssue
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteIssue = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+
+        const result = await deleteIssueService(issueId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: result.message,
+            data: null
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const createSubtask = async (req, res, next) => {
+    try {
+        const creatorId = req.user._id;
+        const subtaskData = req.body;
+
+        const subtask = await createSubtaskService(subtaskData, creatorId);
+
+        return res.status(StatusCodes.CREATED).json({
+            EC: 0,
+            EM: "Sub-task created successfully",
+            data: subtask
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const getSubtasks = async (req, res, next) => {
+    try {
+        const { issueId: parentId } = req.params; // Lấy issueId từ URL và đổi tên thành parentId
+        const userId = req.user._id;
+
+        const subtasks = await getSubtasksService(parentId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Sub-tasks fetched successfully",
+            data: subtasks
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getIssuesBySprint,
-    getIssuesByProject
+    getIssuesByProject,
+    updateIssue,
+    deleteIssue,
+    createSubtask,
+    getSubtasks
 };

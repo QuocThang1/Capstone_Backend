@@ -11,6 +11,11 @@ const issueSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Sprint",
         },
+        parentId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Issue",
+            default: null,
+        },
         issueKey: {
             type: String,
             required: true,
