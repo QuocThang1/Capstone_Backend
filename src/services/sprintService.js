@@ -1,5 +1,6 @@
 const sprintDAO = require("../DAO/sprintDAO");
 const projectDAO = require("../DAO/projectDAO");
+const issueDAO = require("../DAO/issueDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
@@ -111,7 +112,15 @@ const deleteSprintService = async (sprintId, userId) => {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
 
-    // TODO: Xử lý các issue trong sprint bị xóa (ví dụ: chuyển về backlog)
+    // Chuyển issue trong sprint bị xóa về backlog
+    const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, 'Backlog');
+    if (!backlogSprint) {
+        throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find the Backlog sprint for this project.");
+    }
+
+    const filter = { sprintId: sprintId };
+    const update = { $set: { sprintId: backlogSprint._id } };
+    await issueDAO.updateManyIssues(filter, update);
 
     await sprintDAO.deleteSprint(sprintId);
     return { message: "Sprint deleted successfully." };

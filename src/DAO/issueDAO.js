@@ -36,6 +36,10 @@ class IssueDAO {
         return await Issue.deleteMany(filter);
     }
 
+    async updateManyIssues(filter, update) {
+        return await Issue.updateMany(filter, update);
+    }
+
     async getSubtasks(parentId) {
         return await this.getIssues({ parentId: parentId });
     }
