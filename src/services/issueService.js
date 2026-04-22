@@ -124,7 +124,11 @@ const deleteIssueService = async (issueId, userId) => {
     // Xóa issue chính
     await issueDAO.deleteIssue(issueId);
 
-    return { message: "Issue and its sub-tasks deleted successfully." };
+    if (!issue.parentId) {
+        return { message: "Issue and its sub-tasks deleted successfully." };
+    } else {
+        return { message: "Sub-task deleted successfully." };
+    }
 };
 
 const createSubtaskService = async (issueData, creatorId) => {
