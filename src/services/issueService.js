@@ -76,10 +76,6 @@ const getIssuesByProjectService = async (projectId, userId) => {
     return await issueDAO.getIssues({ projectId });
 };
 
-// src/services/issueService.js
-
-// ... các hàm khác
-
 const updateIssueService = async (issueId, updateData, userId) => {
     const issue = await issueDAO.getIssueById(issueId);
     if (!issue) {
@@ -97,6 +93,16 @@ const updateIssueService = async (issueId, updateData, userId) => {
         const isAssigneeMember = await projectDAO.isMemberOfProject(issue.projectId, updateData.assigneeId);
         if (!isAssigneeMember) {
             throw new ApiError(StatusCodes.BAD_REQUEST, "Assignee must be a member of the project.");
+        }
+    }
+
+    if (updateData.status) {
+        if (updateData.status === "Done") {
+            updateData.resolution = "Done";
+            updateData.completedAt = new Date();
+        } else {
+            updateData.resolution = "Unresolved";
+            updateData.completedAt = null;
         }
     }
 

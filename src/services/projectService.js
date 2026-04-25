@@ -220,6 +220,20 @@ const updateBoardColumnsService = async (projectId, userId, boardColumns) => {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Board columns data must be an array.");
     }
 
+    const originalDoneColumn = project.boardColumns.find(col => col.name === "Done");
+
+    if (originalDoneColumn) {
+        // Tìm xem cột "Done" có trong dữ liệu mới gửi lên không
+        const newDoneColumn = boardColumns.find(col => col._id.toString() === originalDoneColumn._id.toString());
+
+        if (!newDoneColumn) {
+            throw new ApiError(StatusCodes.FORBIDDEN, `The "Done" column cannot be deleted.`);
+        }
+        if (newDoneColumn.name !== "Done") {
+            throw new ApiError(StatusCodes.FORBIDDEN, `The "Done" column cannot be renamed.`);
+        }
+    }
+
     // Tạo một Set chứa tên các cột. Nếu kích thước Set nhỏ hơn độ dài mảng, nghĩa là có trùng lặp.
     if (new Set(boardColumns.map(col => col.name)).size < boardColumns.length) {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Board column names must be unique.");

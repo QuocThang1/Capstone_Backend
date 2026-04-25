@@ -46,6 +46,11 @@ const issueSchema = new mongoose.Schema(
             type: String,
             default: "To Do", // Lưu tên cột Kanban
         },
+        resolution: {
+            type: String,
+            enum: ["Unresolved", "Done"],
+            default: "Unresolved",
+        },
         reporterId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Account",
