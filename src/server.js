@@ -5,6 +5,9 @@ const express = require('express')
 const cors = require('cors')
 const http = require('http')
 
+const { Server } = require('socket.io');
+const initializeSocket = require('./socket/socketHandler');
+
 const errorHandlingMiddleware = require('./middleware/errorHandling')
 
 const accountRouter = require('./routes/accountRoutes')
@@ -12,6 +15,7 @@ const userRouter = require('./routes/userRoutes')
 const projectRouter = require('./routes/projectRoutes')
 const sprintRouter = require('./routes/sprintRoutes')
 const issueRouter = require('./routes/issueRoutes')
+const commentRouter = require('./routes/commentRoutes')
 
 const connection = require("./config/database");
 
@@ -20,6 +24,17 @@ const server = http.createServer(app)
 
 const port = process.env.PORT || 8080
 const host = process.env.HOST || 'localhost'
+
+const io = new Server(server, {
+    cors: {
+        origin: process.env.CLIENT_URL,
+        methods: ["GET", "POST"]
+    }
+});
+
+app.set('io', io);
+
+initializeSocket(io);
 
 app.use(cors());
 app.use(express.json());
@@ -30,6 +45,7 @@ app.use('/v1/api/users', userRouter);
 app.use('/v1/api/projects', projectRouter);
 app.use('/v1/api/sprints', sprintRouter);
 app.use('/v1/api/issues', issueRouter);
+app.use('/v1/api/comments', commentRouter);
 
 
 app.use(errorHandlingMiddleware);

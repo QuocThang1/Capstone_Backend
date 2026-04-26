@@ -1,6 +1,7 @@
 const issueDAO = require("../DAO/issueDAO");
 const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
+const commentDAO = require("../DAO/commentDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
@@ -121,6 +122,13 @@ const deleteIssueService = async (issueId, userId) => {
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
+
+    // Xóa tất cả comment liên quan đến issue này và các sub-task của nó
+    const issueIdsToDeleteCommentsFor = [issueId];
+    const subtasks = await issueDAO.getSubtasks(issueId);
+    subtasks.forEach(sub => issueIdsToDeleteCommentsFor.push(sub._id));
+
+    await commentDAO.deleteManyComments({ issueId: { $in: issueIdsToDeleteCommentsFor } });
 
     // Nếu issue này là một task cha (không có parentId), xóa tất cả sub-task của nó
     if (!issue.parentId) {
