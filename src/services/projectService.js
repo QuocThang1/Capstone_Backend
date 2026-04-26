@@ -1,6 +1,8 @@
 const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
 const accountDAO = require("../DAO/accountDAO");
+const issueDAO = require("../DAO/issueDAO");
+const commentDAO = require("../DAO/commentDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { get } = require("mongoose");
@@ -150,7 +152,17 @@ const deleteProjectService = async (projectId, userId, userRole) => {
         }
     }
 
+    // Lấy danh sách ID của tất cả issue trong project
+    const issuesInProject = await issueDAO.getIssues({ projectId });
+    const issueIds = issuesInProject.map(issue => issue._id);
+
+    if (issueIds.length > 0) {
+        await commentDAO.deleteManyComments({ issueId: { $in: issueIds } });
+    }
+    await issueDAO.deleteManyIssues({ projectId });
+    await sprintDAO.deleteManySprints({ projectId });
     await projectDAO.deleteProject(projectId);
+
     return { message: "Project deleted successfully" };
 };
 

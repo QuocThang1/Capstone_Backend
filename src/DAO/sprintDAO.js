@@ -50,6 +50,10 @@ class SprintDAO {
     async deleteSprint(sprintId) {
         return await Sprint.findByIdAndDelete(sprintId);
     }
+
+    async deleteManySprints(filter) {
+        return await Sprint.deleteMany(filter);
+    }
 }
 
 module.exports = new SprintDAO();
