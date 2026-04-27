@@ -68,10 +68,10 @@ const getAllProjectsService = async (query, userId, userRole) => {
 
     const filter = {};
 
-    // Nếu không phải admin, chỉ lấy project mà user là thành viên
-    if (userRole !== 'admin') {
-        filter['members.accountId'] = userId;
-    }
+    //test quyền admin để xem tất cả project, nếu không phải admin thì chỉ xem project có mình là member
+    // if (userRole !== 'admin') {
+    filter['members.accountId'] = userId;
+    // }
 
     if (search) {
         filter.$or = [
@@ -174,6 +174,7 @@ const addMemberService = async (projectId, inviterId, memberEmail, role = 'membe
     }
 
     const inviter = project.members.find(m => m.accountId._id.toString() === inviterId.toString());
+
     //Chỉ leader mới có quyền mời thành viên mới
     if (!inviter || inviter.role !== 'leader') {
         throw new ApiError(StatusCodes.FORBIDDEN, "Only project leaders can add new members.");

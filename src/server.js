@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, './.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 
 const express = require('express')
 const cors = require('cors')
@@ -16,6 +16,7 @@ const projectRouter = require('./routes/projectRoutes')
 const sprintRouter = require('./routes/sprintRoutes')
 const issueRouter = require('./routes/issueRoutes')
 const commentRouter = require('./routes/commentRoutes')
+const historyRouter = require('./routes/historyRoutes')
 
 const connection = require("./config/database");
 
@@ -46,6 +47,7 @@ app.use('/v1/api/projects', projectRouter);
 app.use('/v1/api/sprints', sprintRouter);
 app.use('/v1/api/issues', issueRouter);
 app.use('/v1/api/comments', commentRouter);
+app.use('/v1/api/history', historyRouter);
 
 
 app.use(errorHandlingMiddleware);
