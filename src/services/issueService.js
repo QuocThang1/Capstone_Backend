@@ -1,10 +1,11 @@
 const issueDAO = require("../DAO/issueDAO");
 const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
+const commentDAO = require("../DAO/commentDAO");
+const historyDAO = require("../DAO/historyDAO");
+const { createHistoryRecord } = require("./historyService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
-
-// src/services/issueService.js
 
 const createIssueService = async (issueData, creatorId) => {
     const { projectId, sprintId, title, type, parentId } = issueData;
@@ -77,24 +78,58 @@ const getIssuesByProjectService = async (projectId, userId) => {
 };
 
 const updateIssueService = async (issueId, updateData, userId) => {
-    const issue = await issueDAO.getIssueById(issueId);
-    if (!issue) {
+
+    const originalIssue = await issueDAO.getIssueById(issueId);
+    if (!originalIssue) {
         throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
     }
 
-    // Kiểm tra quyền: user phải là thành viên của project
-    const hasAccess = await projectDAO.isMemberOfProject(issue.projectId, userId);
+    const hasAccess = await projectDAO.isMemberOfProject(originalIssue.projectId, userId);
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
 
-    // Nếu có `assigneeId` trong data update, kiểm tra xem assignee đó có phải là member của project không
+    if (updateData.hasOwnProperty('status') && updateData.status !== originalIssue.status) {
+        if (originalIssue.sprintId) {
+            const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
+            if (sprint && sprint.status !== 'active') {
+                throw new ApiError(StatusCodes.FORBIDDEN, `Cannot change issue status because sprint "${sprint.name}" is not active.`);
+            }
+        }
+
+        //Kiểm tra quyền: chỉ leader hoặc assignee mới được đổi status
+        const project = await projectDAO.getProjectById(originalIssue.projectId);
+        const leader = project.members.find(m => m.role === 'leader');
+        const isLeader = leader && leader.accountId._id.toString() === userId.toString();
+        const isAssignee = originalIssue.assigneeId && originalIssue.assigneeId._id.toString() === userId.toString();
+
+        if (!isLeader && !isAssignee) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Only the project leader or the assignee can change the issue status.");
+        }
+    }
+
     if (updateData.assigneeId) {
-        const isAssigneeMember = await projectDAO.isMemberOfProject(issue.projectId, updateData.assigneeId);
+        const isAssigneeMember = await projectDAO.isMemberOfProject(originalIssue.projectId, updateData.assigneeId);
         if (!isAssigneeMember) {
             throw new ApiError(StatusCodes.BAD_REQUEST, "Assignee must be a member of the project.");
         }
     }
+
+    //Ghi nhận lại các thay đổi để lưu vào lịch sử
+    const changes = [];
+    const fieldsToTrack = ['sprintId', 'assigneeId', 'status', 'priority', 'storyPoints', 'dueDate', 'startDate', 'title', 'description'];
+
+    fieldsToTrack.forEach(field => {
+        // Chỉ ghi nhận nếu trường đó có trong `updateData` và giá trị thực sự thay đổi
+        // So sánh chuỗi để xử lý ObjectId và các kiểu dữ liệu khác một cách nhất quán
+        if (updateData.hasOwnProperty(field) && String(originalIssue[field] || '') !== String(updateData[field] || '')) {
+            changes.push({
+                field: field,
+                oldValue: originalIssue[field],
+                newValue: updateData[field]
+            });
+        }
+    });
 
     if (updateData.status) {
         if (updateData.status === "Done") {
@@ -106,7 +141,31 @@ const updateIssueService = async (issueId, updateData, userId) => {
         }
     }
 
-    return await issueDAO.updateIssue(issueId, updateData);
+    const updatedIssue = await issueDAO.updateIssue(issueId, updateData);
+
+    //Sau khi cập nhật thành công, tạo các bản ghi lịch sử
+    if (changes.length > 0 && !originalIssue.parentId) { // Chỉ tạo lịch sử cho issue cha
+        // Mapping từ tên trường trong DB sang tên hiển thị thân thiện
+        const fieldDisplayNames = {
+            sprintId: 'Sprint',
+            assigneeId: 'Assignee',
+            status: 'Status',
+            priority: 'Priority',
+            storyPoints: 'Story Points',
+            dueDate: 'Due Date',
+            startDate: 'Start Date',
+            title: 'Title',
+            description: 'Description'
+        };
+
+        // Dùng Promise.all để các tiến trình tạo history có thể chạy song song
+        await Promise.all(changes.map(change => {
+            const displayName = fieldDisplayNames[change.field] || change.field;
+            return createHistoryRecord(issueId, userId, displayName, change.oldValue, change.newValue);
+        }));
+    }
+
+    return updatedIssue;
 };
 
 
@@ -121,6 +180,16 @@ const deleteIssueService = async (issueId, userId) => {
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
+
+    const issueIdsToDelete = [issueId];
+    if (!issue.parentId) { // Nếu là issue cha, lấy cả sub-task
+        const subtasks = await issueDAO.getSubtasks(issueId);
+        subtasks.forEach(sub => issueIdsToDelete.push(sub._id));
+    }
+
+    // Xóa tất cả comment và history liên quan
+    await commentDAO.deleteManyComments({ issueId: { $in: issueIdsToDelete } });
+    await historyDAO.deleteManyHistories({ issueId: { $in: issueIdsToDelete } });
 
     // Nếu issue này là một task cha (không có parentId), xóa tất cả sub-task của nó
     if (!issue.parentId) {

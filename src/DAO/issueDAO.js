@@ -43,6 +43,18 @@ class IssueDAO {
     async getSubtasks(parentId) {
         return await this.getIssues({ parentId: parentId });
     }
+
+    async countIssuesByStatus(projectId, status) {
+        return await Issue.countDocuments({ projectId, status });
+    }
+
+    async countIssuesBySprint(sprintId) {
+        return await Issue.countDocuments({ sprintId });
+    };
+
+    async getUnresolvedIssuesBySprint(sprintId) {
+        return await Issue.find({ sprintId, resolution: { $ne: 'Done' } });
+    };
 }
 
 module.exports = new IssueDAO();
