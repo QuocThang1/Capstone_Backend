@@ -2,6 +2,7 @@ const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
 const accountDAO = require("../DAO/accountDAO");
 const issueDAO = require("../DAO/issueDAO");
+const historyDAO = require("../DAO/historyDAO");
 const commentDAO = require("../DAO/commentDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
@@ -156,9 +157,12 @@ const deleteProjectService = async (projectId, userId, userRole) => {
     const issuesInProject = await issueDAO.getIssues({ projectId });
     const issueIds = issuesInProject.map(issue => issue._id);
 
+    // Xóa tất cả các dữ liệu liên quan
     if (issueIds.length > 0) {
         await commentDAO.deleteManyComments({ issueId: { $in: issueIds } });
+        await historyDAO.deleteManyHistories({ issueId: { $in: issueIds } }); // <-- THÊM DÒNG NÀY
     }
+
     await issueDAO.deleteManyIssues({ projectId });
     await sprintDAO.deleteManySprints({ projectId });
     await projectDAO.deleteProject(projectId);
@@ -253,7 +257,91 @@ const updateBoardColumnsService = async (projectId, userId, boardColumns) => {
     }
 
     const updatedProject = await projectDAO.updateProject(projectId, { boardColumns });
+
+    const statusUpdateTasks = [];
+    boardColumns.forEach(newColumn => {
+        // Chỉ xử lý các cột đã tồn tại (có _id)
+        if (newColumn._id) {
+            const originalColumn = project.boardColumns.find(
+                oldCol => oldCol._id.toString() === newColumn._id.toString()
+            );
+
+            // Nếu tìm thấy cột cũ và tên đã thay đổi
+            if (originalColumn && originalColumn.name !== newColumn.name) {
+                statusUpdateTasks.push(
+                    issueDAO.updateManyIssues(
+                        { projectId, status: originalColumn.name },
+                        { $set: { status: newColumn.name } }
+                    )
+                );
+            }
+        }
+    });
+
+    if (statusUpdateTasks.length > 0) {
+        await Promise.all(statusUpdateTasks);
+    }
+
     return updatedProject.boardColumns;
+};
+
+const deleteBoardColumnService = async (projectId, userId, columnName, targetColumnName) => {
+    const project = await projectDAO.getProjectById(projectId);
+    if (!project) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
+    }
+
+    // Kiểm tra quyền: chỉ member mới được xóa
+    const isMember = project.members.some(m => m.accountId._id.toString() === userId.toString());
+    if (!isMember) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members can delete columns.");
+    }
+
+    // Không cho phép xóa cột "Done"
+    if (columnName === "Done") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "The 'Done' column cannot be deleted.");
+    }
+
+    const columnToDelete = project.boardColumns.find(col => col.name === columnName);
+    if (!columnToDelete) {
+        throw new ApiError(StatusCodes.NOT_FOUND, `Column "${columnName}" not found.`);
+    }
+
+    // Đếm số lượng issue trong cột này
+    const issueCount = await issueDAO.countIssuesByStatus(projectId, columnName);
+
+    if (issueCount > 0) {
+        // Nếu có issue, kiểm tra xem người dùng đã cung cấp cột đích chưa
+        if (!targetColumnName) {
+            // Giai đoạn 1: Yêu cầu người dùng chọn cột đích
+            const availableColumns = project.boardColumns
+                .filter(col => col.name !== columnName)
+                .map(col => col.name);
+
+            throw new ApiError(StatusCodes.BAD_REQUEST, `There are ${issueCount} issues in the "${columnName}" column. Please specify a target column to move these issues to before deletion.`).withContext({ availableColumns, requiresMigration: true });
+        }
+
+        // Giai đoạn 2: Người dùng đã cung cấp cột đích, tiến hành di chuyển và xóa
+        const targetColumn = project.boardColumns.find(col => col.name === targetColumnName);
+        if (!targetColumn) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, `Target column "${targetColumnName}" is not valid.`);
+        }
+
+        // Di chuyển các issue
+        await issueDAO.updateManyIssues(
+            { projectId, status: columnName },
+            { $set: { status: targetColumnName } }
+        );
+    }
+
+    // Xóa cột khỏi mảng boardColumns
+    const updatedColumns = project.boardColumns.filter(col => col.name !== columnName);
+    const updatedProject = await projectDAO.updateProject(projectId, { boardColumns: updatedColumns });
+
+    return {
+        data: updatedProject.boardColumns,
+        message: `Column "${columnName}" deleted successfully.`
+    };
 };
 
 const updateIssueTypesService = async (projectId, userId, issueTypes) => {
@@ -261,7 +349,6 @@ const updateIssueTypesService = async (projectId, userId, issueTypes) => {
     if (!project) {
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
-
 
     const isMember = project.members.some(m => m.accountId._id.toString() === userId.toString());
     if (!isMember) {
@@ -324,4 +411,5 @@ module.exports = {
     updateIssueTypesService,
     getBoardColumnsService,
     getIssueTypesService,
+    deleteBoardColumnService
 };

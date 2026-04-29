@@ -126,10 +126,93 @@ const deleteSprintService = async (sprintId, userId) => {
     return { message: "Sprint deleted successfully." };
 };
 
+const startSprintService = async (sprintId, userId) => {
+    const sprint = await sprintDAO.getSprintById(sprintId);
+    if (!sprint) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Sprint not found.");
+    }
+
+    // Kiểm tra quyền truy cập
+    const hasAccess = await projectDAO.checkMemberExists(sprint.projectId, userId);
+    if (!hasAccess) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    // Sprint phải ở trạng thái 'pending'
+    if (sprint.status !== 'pending') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Sprint has already been started or completed.");
+    }
+
+    // Sprint phải có ngày bắt đầu và kết thúc
+    if (!sprint.startDate || !sprint.endDate) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Sprint must have a start date and an end date to begin.");
+    }
+
+    // Chỉ một sprint được chạy trong một project
+    const activeSprint = await sprintDAO.findActiveSprintByProjectId(sprint.projectId);
+    if (activeSprint) {
+        throw new ApiError(StatusCodes.CONFLICT, `Cannot start sprint. Sprint "${activeSprint.name}" is already active.`);
+    }
+
+    // Phải có ít nhất 1 issue trong sprint
+    const issueCount = await issueDAO.countIssuesBySprint(sprintId);
+    if (issueCount === 0) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Cannot start a sprint with no issues.");
+    }
+
+    // Cập nhật trạng thái sprint thành 'active'
+    const updatedSprint = await sprintDAO.updateSprint(sprintId, { status: 'active' });
+    return updatedSprint;
+};
+
+const completeSprintService = async (sprintId, userId) => {
+    const sprint = await sprintDAO.getSprintById(sprintId);
+    if (!sprint) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Sprint not found.");
+    }
+
+    // Kiểm tra quyền truy cập
+    const hasAccess = await projectDAO.checkMemberExists(sprint.projectId, userId);
+    if (!hasAccess) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    // Sprint phải ở trạng thái 'active'
+    if (sprint.status !== 'active') {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "This sprint is not active.");
+    }
+
+    // Tìm các issue chưa hoàn thành
+    const unresolvedIssues = await issueDAO.getUnresolvedIssuesBySprint(sprintId);
+
+    if (unresolvedIssues.length > 0) {
+        // Tìm sprint 'Backlog'
+        const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, 'Backlog');
+        if (!backlogSprint) {
+            throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find the Backlog sprint for this project.");
+        }
+
+        // Chuyển các issue chưa hoàn thành về Backlog
+        const issueIdsToMove = unresolvedIssues.map(issue => issue._id);
+        await issueDAO.updateManyIssues(
+            { _id: { $in: issueIdsToMove } },
+            { $set: { sprintId: backlogSprint._id } }
+        );
+    }
+
+    // Cập nhật trạng thái sprint thành 'completed'
+    const completedSprint = await sprintDAO.updateSprint(sprintId, { status: 'completed' });
+    return {
+        sprint: completedSprint,
+        movedIssuesCount: unresolvedIssues.length
+    };
+};
 
 module.exports = {
     createSprintService,
     getSprintsByProjectService,
     updateSprintService,
     deleteSprintService,
+    startSprintService,
+    completeSprintService
 };
