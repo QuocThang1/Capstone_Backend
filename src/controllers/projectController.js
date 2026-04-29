@@ -10,6 +10,7 @@ const {
     updateIssueTypesService,
     getBoardColumnsService,
     getIssueTypesService,
+    deleteBoardColumnService
 } = require("../services/projectService");
 const { StatusCodes } = require("http-status-codes");
 
@@ -158,6 +159,23 @@ const updateBoardColumns = async (req, res, next) => {
     }
 };
 
+const deleteBoardColumn = async (req, res, next) => {
+    try {
+        const { projectId, columnName } = req.params;
+        const { targetColumnName } = req.body;
+        const userId = req.user._id;
+
+        const result = await deleteBoardColumnService(projectId, userId, columnName, targetColumnName);
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: result.message,
+            data: result.data
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const updateIssueTypes = async (req, res, next) => {
     try {
         const { projectId } = req.params;
@@ -210,4 +228,5 @@ module.exports = {
     updateIssueTypes,
     getBoardColumns,
     getIssueTypes,
+    deleteBoardColumn
 };

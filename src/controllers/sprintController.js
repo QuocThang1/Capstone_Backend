@@ -3,6 +3,8 @@ const {
     getSprintsByProjectService,
     updateSprintService,
     deleteSprintService,
+    startSprintService,
+    completeSprintService
 } = require("../services/sprintService");
 const { StatusCodes } = require("http-status-codes");
 
@@ -76,9 +78,45 @@ const deleteSprint = async (req, res, next) => {
     }
 };
 
+const startSprint = async (req, res, next) => {
+    try {
+        const { sprintId } = req.params;
+        const userId = req.user._id;
+
+        const sprint = await startSprintService(sprintId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Sprint started successfully",
+            data: sprint
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const completeSprint = async (req, res, next) => {
+    try {
+        const { sprintId } = req.params;
+        const userId = req.user._id;
+
+        const result = await completeSprintService(sprintId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: `Sprint completed. ${result.movedIssuesCount} issues moved to backlog.`,
+            data: result.sprint
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createSprint,
     getSprintsByProject,
     updateSprint,
     deleteSprint,
+    startSprint,
+    completeSprint
 };

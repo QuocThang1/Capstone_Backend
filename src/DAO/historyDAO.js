@@ -11,6 +11,10 @@ class HistoryDAO {
             .populate('authorId', 'username fullName email')
             .sort({ createdAt: -1 });
     }
+
+    async deleteManyHistories(filter) {
+        return await History.deleteMany(filter);
+    }
 }
 
 module.exports = new HistoryDAO();

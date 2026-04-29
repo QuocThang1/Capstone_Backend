@@ -54,6 +54,10 @@ class SprintDAO {
     async deleteManySprints(filter) {
         return await Sprint.deleteMany(filter);
     }
+
+    async findActiveSprintByProjectId(projectId) {
+        return await Sprint.findOne({ projectId, status: 'active' });
+    };
 }
 
 module.exports = new SprintDAO();
