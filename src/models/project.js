@@ -45,6 +45,13 @@ const projectSchema = new mongoose.Schema(
                 iconUrl: { type: String }
             }
         ],
+
+        activeWorkflowId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Workflow",
+            required: false,
+        },
+
         issueSequence: {
             type: Number,
             default: 0,

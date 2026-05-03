@@ -26,7 +26,8 @@ class ProjectDAO {
 
     async getProjectById(projectId) {
         return await Project.findById(projectId)
-            .populate('members.accountId', 'username fullName email');
+            .populate('members.accountId', 'username fullName email')
+            .populate('activeWorkflowId');
     }
 
     async getProjectByKey(key) {

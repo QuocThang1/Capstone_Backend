@@ -17,6 +17,7 @@ const sprintRouter = require('./routes/sprintRoutes')
 const issueRouter = require('./routes/issueRoutes')
 const commentRouter = require('./routes/commentRoutes')
 const historyRouter = require('./routes/historyRoutes')
+const workflowRouter = require('./routes/workflowRoutes')
 
 const connection = require("./config/database");
 
@@ -48,6 +49,7 @@ app.use('/v1/api/sprints', sprintRouter);
 app.use('/v1/api/issues', issueRouter);
 app.use('/v1/api/comments', commentRouter);
 app.use('/v1/api/history', historyRouter);
+app.use('/v1/api/workflows', workflowRouter);
 
 
 app.use(errorHandlingMiddleware);

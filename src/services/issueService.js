@@ -3,6 +3,7 @@ const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
 const commentDAO = require("../DAO/commentDAO");
 const historyDAO = require("../DAO/historyDAO");
+const mongoose = require("mongoose");
 const { createHistoryRecord } = require("./historyService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
@@ -84,12 +85,43 @@ const updateIssueService = async (issueId, updateData, userId) => {
         throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
     }
 
+    const project = await projectDAO.getProjectById(originalIssue.projectId);
+
     const hasAccess = await projectDAO.isMemberOfProject(originalIssue.projectId, userId);
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
 
+    console.log('Original Issue status:', originalIssue.status);
+    console.log('Update Data status:', updateData.status);
+
     if (updateData.hasOwnProperty('status') && updateData.status !== originalIssue.status) {
+        console.log(`Attempting to change status of issue ${issueId} from "${originalIssue.status}" to "${updateData.status}" by user ${userId}`);
+        //  Kiểm tra Workflow
+        if (project.activeWorkflowId) {
+            const workflow = project.activeWorkflowId;
+            const fromStatus = originalIssue.status;
+            const toStatus = updateData.status;
+
+            console.log(`Checking workflow transitions for project ${project._id}: from "${fromStatus}" to "${toStatus}"`);
+
+            const rule = workflow.transitions.find(t => t.from === fromStatus);
+            const anyRule = workflow.transitions.find(t => t.from === '__any__');
+
+            let isAllowed = false;
+            if (rule && rule.to.includes(toStatus)) {
+                isAllowed = true;
+            }
+            if (!isAllowed && anyRule && anyRule.to.includes(toStatus)) {
+                isAllowed = true;
+            }
+
+            if (!isAllowed) {
+                throw new ApiError(StatusCodes.BAD_REQUEST, `Transition from "${fromStatus}" to "${toStatus}" is not allowed by the current workflow.`);
+            }
+        }
+
+        // Kiểm tra Sprint có active không
         if (originalIssue.sprintId) {
             const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
             if (sprint && sprint.status !== 'active') {
@@ -98,7 +130,6 @@ const updateIssueService = async (issueId, updateData, userId) => {
         }
 
         //Kiểm tra quyền: chỉ leader hoặc assignee mới được đổi status
-        const project = await projectDAO.getProjectById(originalIssue.projectId);
         const leader = project.members.find(m => m.role === 'leader');
         const isLeader = leader && leader.accountId._id.toString() === userId.toString();
         const isAssignee = originalIssue.assigneeId && originalIssue.assigneeId._id.toString() === userId.toString();
