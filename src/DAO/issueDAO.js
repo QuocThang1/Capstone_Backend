@@ -55,6 +55,15 @@ class IssueDAO {
     async getUnresolvedIssuesBySprint(sprintId) {
         return await Issue.find({ sprintId, resolution: { $ne: 'Done' } });
     };
+
+    async getDueIssues(startOfDay, endOfDay) {
+        return await Issue.find({
+            dueDate: { $gte: startOfDay, $lte: endOfDay },
+            resolution: { $ne: 'Done' },
+            assigneeId: { $ne: null },
+            parentId: null
+        }).populate('assigneeId');
+    }
 }
 
 module.exports = new IssueDAO();

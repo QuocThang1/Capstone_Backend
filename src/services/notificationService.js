@@ -1,0 +1,66 @@
+const notificationDAO = require("../DAO/notificationDAO");
+const issueDAO = require("../DAO/issueDAO");
+const ApiError = require("../utils/ApiError");
+const { StatusCodes } = require("http-status-codes");
+
+const getMyNotificationsService = async (userId) => {
+    return await notificationDAO.getNotificationsByUserId(userId);
+};
+
+const deleteNotificationService = async (notificationId, userId) => {
+    const notif = await notificationDAO.getNotificationByIdAndUser(notificationId, userId);
+    if (!notif) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Notification not found or access denied.");
+    }
+
+    await notificationDAO.deleteNotification(notificationId);
+    return { message: "Notification deleted successfully." };
+};
+
+// Hàm xử lý việc xác định Issue đến hạn và tạo thông báo
+const generateDueIssueNotifications = async (io) => {
+    try {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Chuỗi khóa để chống trùng 1 lần / ngày theo thông số trong model (VD: "2026-05-04")
+        const todayString = startOfDay.toISOString().split('T')[0];
+
+        const dueIssues = await issueDAO.getDueIssues(startOfDay, endOfDay);
+
+        for (const issue of dueIssues) {
+            try {
+                const notificationData = {
+                    recipientId: issue.assigneeId._id,
+                    issueId: issue._id,
+                    message: `Issue ${issue.issueKey}: "${issue.title}" is due today.`,
+                    type: 'DUE_TODAY',
+                    notifiedDate: todayString
+                };
+
+                const newNotif = await notificationDAO.createNotification(notificationData);
+
+                // Nếu khởi tạo thành công (không bị lỗi trùng lặp dữ liệu), sẽ gửi realtime qua socket
+                if (io) {
+                    io.to(`user_${issue.assigneeId._id.toString()}`).emit('new_notification', newNotif);
+                }
+            } catch (error) {
+                // Mã lỗi 11000 = unique duplicate key -> Bỏ qua lỗi này vì nó đồng nghĩa trong hôm nay báo cáo này ĐÃ ĐƯỢC GỬI.
+                if (error.code !== 11000) {
+                    console.error(`Failed to create notification for issue ${issue._id}`, error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error in generateDueIssueNotifications:", error);
+    }
+}
+
+module.exports = {
+    getMyNotificationsService,
+    deleteNotificationService,
+    generateDueIssueNotifications
+};
