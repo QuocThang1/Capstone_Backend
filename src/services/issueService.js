@@ -92,9 +92,6 @@ const updateIssueService = async (issueId, updateData, userId) => {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
 
-    console.log('Original Issue status:', originalIssue.status);
-    console.log('Update Data status:', updateData.status);
-
     if (updateData.hasOwnProperty('status') && updateData.status !== originalIssue.status) {
         console.log(`Attempting to change status of issue ${issueId} from "${originalIssue.status}" to "${updateData.status}" by user ${userId}`);
         //  Kiểm tra Workflow

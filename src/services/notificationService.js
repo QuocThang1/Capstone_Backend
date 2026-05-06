@@ -26,7 +26,6 @@ const generateDueIssueNotifications = async (io) => {
         const endOfDay = new Date();
         endOfDay.setHours(23, 59, 59, 999);
 
-        // Chuỗi khóa để chống trùng 1 lần / ngày theo thông số trong model (VD: "2026-05-04")
         const todayString = startOfDay.toISOString().split('T')[0];
 
         const dueIssues = await issueDAO.getDueIssues(startOfDay, endOfDay);
