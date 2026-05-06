@@ -9,7 +9,7 @@ const { StatusCodes } = require("http-status-codes");
 const formatDate = (date) => {
     if (!date) return null;
     try {
-        return new Date(date).toISOString().split('T')[0];
+        return new Date(date).toISOString();
     } catch (error) {
         return null;
     }
