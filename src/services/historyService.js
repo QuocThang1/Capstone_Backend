@@ -34,6 +34,11 @@ const createHistoryRecord = async (issueId, authorId, field, oldValue, newValue)
         oldDisplay = formatDate(oldValue) || 'None';
         newDisplay = formatDate(newValue) || 'None';
     }
+    // Xử lý cho trường Required Skills (Mảng)
+    else if (field === 'Required Skills') {
+        oldDisplay = Array.isArray(oldValue) ? oldValue.join(', ') : oldValue || 'None';
+        newDisplay = Array.isArray(newValue) ? newValue.join(', ') : newValue || 'None';
+    }
     // Xử lý cho các trường có giá trị rỗng/null
     else {
         oldDisplay = oldValue || "None";

@@ -42,6 +42,13 @@ const issueSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        timeExpect: {
+            type: Number,
+            default: 0,
+        },
+        requiredSkills: [{
+            type: String,
+        }],
         status: {
             type: String,
             default: "To Do", // Lưu tên cột Kanban

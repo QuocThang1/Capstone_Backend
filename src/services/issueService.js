@@ -8,6 +8,19 @@ const { createHistoryRecord } = require("./historyService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
+const calculateTimeExpect = (startDate, dueDate, storyPoints) => {
+    if (!startDate || !dueDate || !storyPoints) return 0;
+    const sDate = new Date(startDate);
+    const dDate = new Date(dueDate);
+    if (dDate <= sDate) return 0;
+
+    // (Thời gian chênh lệch tính theo ms) / (1000 * 60 * 60) để ra số Giờ
+    const diffHours = (dDate - sDate) / (1000 * 60 * 60);
+    const timeExpect = diffHours * storyPoints;
+
+    return parseFloat(timeExpect.toFixed(1));
+};
+
 const createIssueService = async (issueData, creatorId) => {
     const { projectId, sprintId, title, type, parentId } = issueData;
 
@@ -45,6 +58,7 @@ const createIssueService = async (issueData, creatorId) => {
         title,
         type,
         reporterId: creatorId,
+        timeExpect: calculateTimeExpect(issueData.startDate, issueData.dueDate, issueData.storyPoints),
     };
 
     const newIssue = await issueDAO.createIssue(newIssueData);
@@ -90,6 +104,14 @@ const updateIssueService = async (issueId, updateData, userId) => {
     const hasAccess = await projectDAO.isMemberOfProject(originalIssue.projectId, userId);
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    if (updateData.hasOwnProperty('startDate') || updateData.hasOwnProperty('dueDate') || updateData.hasOwnProperty('storyPoints')) {
+        const tempStartDate = updateData.hasOwnProperty('startDate') ? updateData.startDate : originalIssue.startDate;
+        const tempDueDate = updateData.hasOwnProperty('dueDate') ? updateData.dueDate : originalIssue.dueDate;
+        const tempStoryPoints = updateData.hasOwnProperty('storyPoints') ? updateData.storyPoints : originalIssue.storyPoints;
+
+        updateData.timeExpect = calculateTimeExpect(tempStartDate, tempDueDate, tempStoryPoints);
     }
 
     if (updateData.hasOwnProperty('status') && updateData.status !== originalIssue.status) {
@@ -145,7 +167,7 @@ const updateIssueService = async (issueId, updateData, userId) => {
 
     //Ghi nhận lại các thay đổi để lưu vào lịch sử
     const changes = [];
-    const fieldsToTrack = ['sprintId', 'assigneeId', 'status', 'priority', 'storyPoints', 'dueDate', 'startDate', 'title', 'description'];
+    const fieldsToTrack = ['sprintId', 'assigneeId', 'status', 'priority', 'storyPoints', 'dueDate', 'startDate', 'title', 'description', 'requiredSkills'];
 
     fieldsToTrack.forEach(field => {
         // Chỉ ghi nhận nếu trường đó có trong `updateData` và giá trị thực sự thay đổi
@@ -183,7 +205,8 @@ const updateIssueService = async (issueId, updateData, userId) => {
             dueDate: 'Due Date',
             startDate: 'Start Date',
             title: 'Title',
-            description: 'Description'
+            description: 'Description',
+            requiredSkills: 'Required Skills'
         };
 
         // Dùng Promise.all để các tiến trình tạo history có thể chạy song song
