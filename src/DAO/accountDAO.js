@@ -6,6 +6,10 @@ class AccountDAO {
         return await newAccount.save();
     }
 
+    async findOne(query) {
+        return await Account.findOne(query);
+    }
+
     async findByUsername(username) {
         return await Account.findOne({ username });
     }
@@ -21,6 +25,14 @@ class AccountDAO {
                 path: 'starredProjects',
                 select: 'name key description members' // Chọn các trường cần thiết của project
             });
+    }
+
+    async updateAccount(userId, updateData) {
+        return await Account.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true }
+        ).select('-password');
     }
 
     async updatePassword(userId, hashedPassword) {

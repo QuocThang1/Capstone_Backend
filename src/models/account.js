@@ -7,6 +7,12 @@ const accountSchema = new mongoose.Schema(
             enum: ["admin", "user"],
             default: "user",
         },
+        username: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true,
+        },
         password: {
             type: String,
             required: false,
@@ -18,6 +24,7 @@ const accountSchema = new mongoose.Schema(
         email: {
             type: String,
             required: true,
+            unique: true,
         },
         phone: {
             type: String,
@@ -31,6 +38,27 @@ const accountSchema = new mongoose.Schema(
             type: String,
             enum: ["male", "female", "other"],
             required: false,
+        },
+        avatar: {
+            type: String,
+            required: false,
+        },
+        googleId: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true,
+        },
+        githubId: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true,
+        },
+        authProvider: {
+            type: String,
+            enum: ["local", "google", "github"],
+            default: "local",
         },
         active: {
             type: Boolean,

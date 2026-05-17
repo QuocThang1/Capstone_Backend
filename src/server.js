@@ -17,6 +17,7 @@ const sprintRouter = require('./routes/sprintRoutes')
 const issueRouter = require('./routes/issueRoutes')
 const commentRouter = require('./routes/commentRoutes')
 const historyRouter = require('./routes/historyRoutes')
+const oauthRouter = require('./routes/oauthRoutes')
 const workflowRouter = require('./routes/workflowRoutes')
 const notificationRouter = require('./routes/notificationRoutes')
 const bottleneckRouter = require('./routes/bottleneckRoutes');
@@ -46,6 +47,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/v1/api/account', accountRouter);
+app.use('/v1/api/auth', oauthRouter);
 app.use('/v1/api/users', userRouter);
 app.use('/v1/api/projects', projectRouter);
 app.use('/v1/api/sprints', sprintRouter);
