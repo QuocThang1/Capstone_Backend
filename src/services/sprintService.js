@@ -182,6 +182,23 @@ const completeSprintService = async (sprintId, userId) => {
         throw new ApiError(StatusCodes.BAD_REQUEST, "This sprint is not active.");
     }
 
+    const allSprintIssues = await issueDAO.getIssues({ sprintId });
+    const sprintIssueIds = allSprintIssues.map(issue => issue._id);
+
+    if (sprintIssueIds.length > 0) {
+        const unresolvedSubtasks = await issueDAO.getIssues({
+            parentId: { $in: sprintIssueIds },
+            resolution: { $ne: 'Done' }
+        });
+
+        if (unresolvedSubtasks.length > 0) {
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                `Cannot complete sprint. There are ${unresolvedSubtasks.length} unresolved sub-task(s) left. Please complete them first.`
+            );
+        }
+    }
+
     // Tìm các issue chưa hoàn thành
     const unresolvedIssues = await issueDAO.getUnresolvedIssuesBySprint(sprintId);
 

@@ -82,16 +82,28 @@ const getIssuesBySprintService = async (sprintId, userId) => {
     return await issueDAO.getIssues(filter);
 };
 
-const getIssuesByProjectService = async (projectId, userId) => {
+const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     // Kiểm tra user có quyền truy cập project không
     const project = await projectDAO.checkMemberExists(projectId, userId);
     if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
+    const queryFilter = { projectId };
 
-    return await issueDAO.getIssues({ projectId });
+    // Thêm các bộ lọc nếu từ frontend có truyền kèm
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.priority) queryFilter.priority = filters.priority;
+    if (filters.assigneeId) queryFilter.assigneeId = filters.assigneeId;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+    if (filters.status) queryFilter.status = filters.status;
+    if (filters.status) queryFilter.status = filters.status;
+
+    // Tìm kiếm theo một phần của Title (không phân biệt hoa/thường)
+    if (filters.title) {
+        queryFilter.title = { $regex: filters.title, $options: "i" }; // "i" là case-insensitive
+    }
+    return await issueDAO.getIssues(queryFilter);
 };
-
 const updateIssueService = async (issueId, updateData, userId) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);

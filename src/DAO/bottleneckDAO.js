@@ -6,10 +6,10 @@ class BottleneckDAO {
         const existing = await Bottleneck.findOne({
             issueId: data.issueId,
             name: data.name,
-            isResolved: false
+            status: { $ne: "unresolved, pending" },
         });
 
-        if (existing && existing.isResolved === false) {
+        if (existing) {
             // Đang có vi phạm và chưa được giải quyết tay -> Cập nhật tiếp số giờ (content) và level
             existing.content = data.content;
             existing.level = data.level;
@@ -26,7 +26,7 @@ class BottleneckDAO {
     }
 
     async getBottleneckById(id) {
-        return await Bottleneck.findById(id);
+        return await Bottleneck.findById(id).populate('issueId');
     }
 
     // Lấy TẤT CẢ bottleneck (thường dùng cho Admin hoặc report tổng)
@@ -46,8 +46,9 @@ class BottleneckDAO {
                 path: 'issueId',
                 match: { projectId: projectId },
                 select: 'issueKey title assigneeId projectId',
-                populate: { path: 'assigneeId', select: 'fullName username' }
+                populate: { path: 'assigneeId', select: 'fullName username' },
             })
+            .populate('resolvedBy', 'fullName username')
             .sort({ createdAt: -1 });
     }
 
@@ -63,6 +64,14 @@ class BottleneckDAO {
             })
             .sort({ createdAt: -1 })
             .then(bottlenecks => bottlenecks.filter(b => b.issueId !== null)); // Loại bỏ các bản ghi không khớp User
+    }
+
+    async updateBottleneckStatus(id, updateData) {
+        return await Bottleneck.findByIdAndUpdate(
+            id,
+            { $set: updateData },
+            { new: true }
+        );
     }
 }
 
