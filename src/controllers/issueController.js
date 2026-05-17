@@ -40,13 +40,22 @@ const getIssuesByProject = async (req, res, next) => {
     try {
         const { projectId } = req.params;
         const userId = req.user._id;
-        const issues = await getIssuesByProjectService(projectId, userId);
+
+        const filters = {
+            type: req.query.type,
+            priority: req.query.priority,
+            assigneeId: req.query.assignee,
+            sprintId: req.query.sprint,
+            status: req.query.status,
+            title: req.query.title
+        };
+
+        const issues = await getIssuesByProjectService(projectId, userId, filters);
         return res.status(StatusCodes.OK).json({ EC: 0, EM: "Success", data: issues });
     } catch (error) {
         next(error);
     }
 };
-
 const updateIssue = async (req, res, next) => {
     try {
         const { issueId } = req.params;

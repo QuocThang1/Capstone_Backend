@@ -3,9 +3,23 @@ const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
 const commentDAO = require("../DAO/commentDAO");
 const historyDAO = require("../DAO/historyDAO");
+const mongoose = require("mongoose");
 const { createHistoryRecord } = require("./historyService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+
+const calculateTimeExpect = (startDate, dueDate, storyPoints) => {
+    if (!startDate || !dueDate || !storyPoints) return 0;
+    const sDate = new Date(startDate);
+    const dDate = new Date(dueDate);
+    if (dDate <= sDate) return 0;
+
+    // (Thời gian chênh lệch tính theo ms) / (1000 * 60 * 60) để ra số Giờ
+    const diffHours = (dDate - sDate) / (1000 * 60 * 60);
+    const timeExpect = diffHours * storyPoints;
+
+    return parseFloat(timeExpect.toFixed(1));
+};
 
 const createIssueService = async (issueData, creatorId) => {
     const { projectId, sprintId, title, type, parentId } = issueData;
@@ -44,6 +58,7 @@ const createIssueService = async (issueData, creatorId) => {
         title,
         type,
         reporterId: creatorId,
+        timeExpect: calculateTimeExpect(issueData.startDate, issueData.dueDate, issueData.storyPoints),
     };
 
     const newIssue = await issueDAO.createIssue(newIssueData);
@@ -67,16 +82,28 @@ const getIssuesBySprintService = async (sprintId, userId) => {
     return await issueDAO.getIssues(filter);
 };
 
-const getIssuesByProjectService = async (projectId, userId) => {
+const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     // Kiểm tra user có quyền truy cập project không
     const project = await projectDAO.checkMemberExists(projectId, userId);
     if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
+    const queryFilter = { projectId };
 
-    return await issueDAO.getIssues({ projectId });
+    // Thêm các bộ lọc nếu từ frontend có truyền kèm
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.priority) queryFilter.priority = filters.priority;
+    if (filters.assigneeId) queryFilter.assigneeId = filters.assigneeId;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+    if (filters.status) queryFilter.status = filters.status;
+    if (filters.status) queryFilter.status = filters.status;
+
+    // Tìm kiếm theo một phần của Title (không phân biệt hoa/thường)
+    if (filters.title) {
+        queryFilter.title = { $regex: filters.title, $options: "i" }; // "i" là case-insensitive
+    }
+    return await issueDAO.getIssues(queryFilter);
 };
-
 const updateIssueService = async (issueId, updateData, userId) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);
@@ -84,12 +111,48 @@ const updateIssueService = async (issueId, updateData, userId) => {
         throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
     }
 
+    const project = await projectDAO.getProjectById(originalIssue.projectId);
+
     const hasAccess = await projectDAO.isMemberOfProject(originalIssue.projectId, userId);
     if (!hasAccess) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
     }
 
+    if (updateData.hasOwnProperty('startDate') || updateData.hasOwnProperty('dueDate') || updateData.hasOwnProperty('storyPoints')) {
+        const tempStartDate = updateData.hasOwnProperty('startDate') ? updateData.startDate : originalIssue.startDate;
+        const tempDueDate = updateData.hasOwnProperty('dueDate') ? updateData.dueDate : originalIssue.dueDate;
+        const tempStoryPoints = updateData.hasOwnProperty('storyPoints') ? updateData.storyPoints : originalIssue.storyPoints;
+
+        updateData.timeExpect = calculateTimeExpect(tempStartDate, tempDueDate, tempStoryPoints);
+    }
+
     if (updateData.hasOwnProperty('status') && updateData.status !== originalIssue.status) {
+        console.log(`Attempting to change status of issue ${issueId} from "${originalIssue.status}" to "${updateData.status}" by user ${userId}`);
+        //  Kiểm tra Workflow
+        if (project.activeWorkflowId) {
+            const workflow = project.activeWorkflowId;
+            const fromStatus = originalIssue.status;
+            const toStatus = updateData.status;
+
+            console.log(`Checking workflow transitions for project ${project._id}: from "${fromStatus}" to "${toStatus}"`);
+
+            const rule = workflow.transitions.find(t => t.from === fromStatus);
+            const anyRule = workflow.transitions.find(t => t.from === '__any__');
+
+            let isAllowed = false;
+            if (rule && rule.to.includes(toStatus)) {
+                isAllowed = true;
+            }
+            if (!isAllowed && anyRule && anyRule.to.includes(toStatus)) {
+                isAllowed = true;
+            }
+
+            if (!isAllowed) {
+                throw new ApiError(StatusCodes.BAD_REQUEST, `Transition from "${fromStatus}" to "${toStatus}" is not allowed by the current workflow.`);
+            }
+        }
+
+        // Kiểm tra Sprint có active không
         if (originalIssue.sprintId) {
             const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
             if (sprint && sprint.status !== 'active') {
@@ -98,7 +161,6 @@ const updateIssueService = async (issueId, updateData, userId) => {
         }
 
         //Kiểm tra quyền: chỉ leader hoặc assignee mới được đổi status
-        const project = await projectDAO.getProjectById(originalIssue.projectId);
         const leader = project.members.find(m => m.role === 'leader');
         const isLeader = leader && leader.accountId._id.toString() === userId.toString();
         const isAssignee = originalIssue.assigneeId && originalIssue.assigneeId._id.toString() === userId.toString();
@@ -117,7 +179,7 @@ const updateIssueService = async (issueId, updateData, userId) => {
 
     //Ghi nhận lại các thay đổi để lưu vào lịch sử
     const changes = [];
-    const fieldsToTrack = ['sprintId', 'assigneeId', 'status', 'priority', 'storyPoints', 'dueDate', 'startDate', 'title', 'description'];
+    const fieldsToTrack = ['sprintId', 'assigneeId', 'status', 'priority', 'storyPoints', 'dueDate', 'startDate', 'title', 'description', 'requiredSkills'];
 
     fieldsToTrack.forEach(field => {
         // Chỉ ghi nhận nếu trường đó có trong `updateData` và giá trị thực sự thay đổi
@@ -155,7 +217,8 @@ const updateIssueService = async (issueId, updateData, userId) => {
             dueDate: 'Due Date',
             startDate: 'Start Date',
             title: 'Title',
-            description: 'Description'
+            description: 'Description',
+            requiredSkills: 'Required Skills'
         };
 
         // Dùng Promise.all để các tiến trình tạo history có thể chạy song song

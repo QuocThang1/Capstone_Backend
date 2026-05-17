@@ -9,7 +9,7 @@ const { StatusCodes } = require("http-status-codes");
 const formatDate = (date) => {
     if (!date) return null;
     try {
-        return new Date(date).toISOString().split('T')[0];
+        return new Date(date).toISOString();
     } catch (error) {
         return null;
     }
@@ -33,6 +33,11 @@ const createHistoryRecord = async (issueId, authorId, field, oldValue, newValue)
     else if (field === 'Start Date' || field === 'Due Date') {
         oldDisplay = formatDate(oldValue) || 'None';
         newDisplay = formatDate(newValue) || 'None';
+    }
+    // Xử lý cho trường Required Skills (Mảng)
+    else if (field === 'Required Skills') {
+        oldDisplay = Array.isArray(oldValue) ? oldValue.join(', ') : oldValue || 'None';
+        newDisplay = Array.isArray(newValue) ? newValue.join(', ') : newValue || 'None';
     }
     // Xử lý cho các trường có giá trị rỗng/null
     else {

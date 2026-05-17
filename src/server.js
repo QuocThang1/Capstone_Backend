@@ -17,6 +17,10 @@ const sprintRouter = require('./routes/sprintRoutes')
 const issueRouter = require('./routes/issueRoutes')
 const commentRouter = require('./routes/commentRoutes')
 const historyRouter = require('./routes/historyRoutes')
+const workflowRouter = require('./routes/workflowRoutes')
+const notificationRouter = require('./routes/notificationRoutes')
+const bottleneckRouter = require('./routes/bottleneckRoutes');
+const { startCronJobs } = require('./services/cronService');
 
 const connection = require("./config/database");
 
@@ -48,13 +52,16 @@ app.use('/v1/api/sprints', sprintRouter);
 app.use('/v1/api/issues', issueRouter);
 app.use('/v1/api/comments', commentRouter);
 app.use('/v1/api/history', historyRouter);
-
-
+app.use('/v1/api/workflows', workflowRouter);
+app.use('/v1/api/notifications', notificationRouter);
+app.use('/v1/api/bottlenecks', bottleneckRouter);
 app.use(errorHandlingMiddleware);
 
 (async () => {
     try {
         await connection();
+
+        startCronJobs(io);
 
         server.listen(port, host, () => {
             console.log(`Backend listening at http://${host}:${port}`)

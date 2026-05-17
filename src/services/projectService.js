@@ -4,6 +4,7 @@ const accountDAO = require("../DAO/accountDAO");
 const issueDAO = require("../DAO/issueDAO");
 const historyDAO = require("../DAO/historyDAO");
 const commentDAO = require("../DAO/commentDAO");
+const workflowDAO = require("../DAO/workflowDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { get } = require("mongoose");
@@ -165,6 +166,7 @@ const deleteProjectService = async (projectId, userId, userRole) => {
 
     await issueDAO.deleteManyIssues({ projectId });
     await sprintDAO.deleteManySprints({ projectId });
+    await workflowDAO.deleteManyWorkflows({ projectId });
     await projectDAO.deleteProject(projectId);
 
     return { message: "Project deleted successfully" };
@@ -333,6 +335,24 @@ const deleteBoardColumnService = async (projectId, userId, columnName, targetCol
             { $set: { status: targetColumnName } }
         );
     }
+
+    // Cập nhật tất cả các workflow trong project để loại bỏ các transition liên quan đến cột bị xóa
+    const workflows = await workflowDAO.getWorkflowsByProjectId(projectId);
+    const updateWorkflowTasks = workflows.map(workflow => {
+        // Lọc bỏ các rule có 'from' là cột bị xóa
+        const filteredTransitions = workflow.transitions.filter(t => t.from !== columnName);
+
+        // Với các rule còn lại, lọc bỏ cột bị xóa khỏi mảng 'to'
+        const updatedTransitions = filteredTransitions.map(t => {
+            t.to = t.to.filter(toStatus => toStatus !== columnName);
+            return t;
+        });
+
+        return workflowDAO.updateWorkflow(workflow._id, { transitions: updatedTransitions });
+    });
+
+    await Promise.all(updateWorkflowTasks);
+
 
     // Xóa cột khỏi mảng boardColumns
     const updatedColumns = project.boardColumns.filter(col => col.name !== columnName);
