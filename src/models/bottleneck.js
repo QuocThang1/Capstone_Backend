@@ -25,9 +25,15 @@ const bottleneckSchema = new mongoose.Schema(
             enum: ["Highest", "High", "Medium", "Low", "Lowest"],
             default: "Medium",
         },
-        isResolved: {
-            type: Boolean,
-            default: false,
+        status: {
+            type: String,
+            enum: ["unresolved", "pending", "resolved"],
+            default: "unresolved",
+        },
+        resolvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Account",
+            default: null,
         },
     },
     {
