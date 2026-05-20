@@ -24,6 +24,27 @@ const initializeSocket = (io) => {
             // console.log(`User ${socket.id} left room ${projectId}`);
         });
 
+        socket.on('join_project_history_room', (projectId) => {
+            socket.join(`project_history_${projectId}`);
+            // console.log(`User ${socket.id} joined history room for project ${projectId}`);
+        });
+
+        socket.on('leave_project_history_room', (projectId) => {
+            socket.leave(`project_history_${projectId}`);
+        });
+
+        socket.on('join_sprint_history_room', (sprintId) => {
+            if (sprintId) {
+                socket.join(`sprint_history_${sprintId}`);
+            }
+        });
+
+        socket.on('leave_sprint_history_room', (sprintId) => {
+            if (sprintId) {
+                socket.leave(`sprint_history_${sprintId}`);
+            }
+        });
+
         socket.on('join_user_room', (userId) => {
             socket.join(`user_${userId}`);
             // console.log(`Socket ${socket.id} joined user room: user_${userId}`);

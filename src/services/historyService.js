@@ -15,7 +15,7 @@ const formatDate = (date) => {
     }
 };
 
-const createHistoryRecord = async (issueId, authorId, field, oldValue, newValue) => {
+const createHistoryRecord = async (issueId, authorId, field, oldValue, newValue, io) => {
     // Chuyển đổi giá trị ID thành tên để hiển thị (nếu cần)
     let oldDisplay = oldValue;
     let newDisplay = newValue;
@@ -58,7 +58,30 @@ const createHistoryRecord = async (issueId, authorId, field, oldValue, newValue)
         newValue: newDisplay,
     };
 
-    await historyDAO.createHistory(historyData);
+    const savedHistory = await historyDAO.createHistory(historyData);
+    try {
+        const issueInfo = await issueDAO.getIssueById(issueId);
+
+        if (issueInfo && io) {
+            const newHistoryForEmit = {
+                ...savedHistory.toObject(),
+                authorId: await accountDAO.getAccountByID(authorId),
+                issueId: {
+                    _id: issueInfo._id,
+                    issueKey: issueInfo.issueKey,
+                    title: issueInfo.title
+                }
+            };
+
+            io.to(`project_history_${issueInfo.projectId.toString()}`).emit('new_project_history', newHistoryForEmit);
+
+            if (issueInfo.sprintId) {
+                io.to(`sprint_history_${issueInfo.sprintId.toString()}`).emit('new_sprint_history', newHistoryForEmit);
+            }
+        }
+    } catch (err) {
+        console.error("Socket emit history error: ", err);
+    }
 };
 
 const getHistoryByIssueService = async (issueId, userId) => {
@@ -71,4 +94,15 @@ const getHistoryByIssueService = async (issueId, userId) => {
     return await historyDAO.getHistoryByIssueId(issueId);
 };
 
-module.exports = { createHistoryRecord, getHistoryByIssueService };
+const getHistoryByProjectService = async (projectId, userId, filters = {}) => {
+    const project = await projectDAO.getProjectById(projectId);
+    if (!project) throw new ApiError(StatusCodes.NOT_FOUND, "Project not found.");
+
+    const isMember = project.members.some(m => m.accountId._id.toString() === userId.toString());
+    if (!isMember) throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+
+    return await historyDAO.getHistoryByProjectId(projectId, filters);
+};
+
+
+module.exports = { createHistoryRecord, getHistoryByIssueService, getHistoryByProjectService };

@@ -7,7 +7,7 @@ const { StatusCodes } = require("http-status-codes");
 
 const saltRounds = 10;
 
-const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender }) => {
+const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender, skills }) => {
     // If username is not provided, generate it from email (first part before @)
     const finalUsername = username || email.split('@')[0];
 
@@ -33,6 +33,7 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
         phone,
         dob,
         gender,
+        skills: skills || [],
     };
 
     const newUser = await accountDAO.createAccount(newUserData);
@@ -93,14 +94,14 @@ const getAccountService = async (userId) => {
     return user;
 };
 
-const updateProfileService = async (userId, { username, fullName, email, phone, dob, gender }) => {
+const updateProfileService = async (userId, { username, fullName, email, phone, dob, gender, skills }) => {
     const existingUser = await accountDAO.getAccountByID(userId);
     if (!existingUser) {
         throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
     }
 
     // Kiểm tra username trùng
-    if (username && username !== existingUser.username) {
+    if (username && username !== existingUser.username && userId !== existingUser._id.toString()) {
         const usernameExists = await accountDAO.findByUsername(username);
         if (usernameExists) {
             throw new ApiError(StatusCodes.CONFLICT, "Username already exists");
@@ -114,6 +115,7 @@ const updateProfileService = async (userId, { username, fullName, email, phone, 
         phone: phone || existingUser.phone,
         dob: dob || existingUser.dob,
         gender: gender || existingUser.gender,
+        skills: skills !== undefined ? skills : existingUser.skills,
     };
 
     const updatedUser = await accountDAO.updateProfile(userId, updateData);

@@ -48,6 +48,11 @@ class IssueDAO {
         return await Issue.countDocuments({ projectId, status });
     }
 
+    async countIssuesByType(projectId, type) {
+        return await Issue.countDocuments({ projectId, type });
+    }
+
+
     async countIssuesBySprint(sprintId) {
         return await Issue.countDocuments({ sprintId });
     };

@@ -62,7 +62,9 @@ const updateIssue = async (req, res, next) => {
         const updateData = req.body;
         const userId = req.user._id;
 
-        const updatedIssue = await updateIssueService(issueId, updateData, userId);
+        const io = req.app.get('io');
+
+        const updatedIssue = await updateIssueService(issueId, updateData, userId, io);
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
