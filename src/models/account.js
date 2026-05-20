@@ -39,6 +39,9 @@ const accountSchema = new mongoose.Schema(
         starredProjects: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Project"
+        }],
+        skills: [{
+            type: String,
         }]
     },
     {

@@ -12,7 +12,7 @@ const transporter = require("../utils/mailer");
 
 const handleSignUp = async (req, res, next) => {
     try {
-        const { username, password, fullName, email, phone, dob, gender } = req.body;
+        const { username, password, fullName, email, phone, dob, gender, skills } = req.body;
 
         const user = await handleSignUpService({
             username,
@@ -21,7 +21,8 @@ const handleSignUp = async (req, res, next) => {
             email,
             phone,
             dob,
-            gender
+            gender,
+            skills
         });
 
         return res.status(StatusCodes.CREATED).json({
@@ -72,7 +73,7 @@ const getAccount = async (req, res, next) => {
 
 const updateProfile = async (req, res, next) => {
     try {
-        const { username, fullName, email, phone, dob, gender } = req.body;
+        const { username, fullName, email, phone, dob, gender, skills } = req.body;
         const userId = req.user._id;
 
         const user = await updateProfileService(userId, {
@@ -82,6 +83,7 @@ const updateProfile = async (req, res, next) => {
             phone,
             dob,
             gender,
+            skills
         });
 
         return res.status(StatusCodes.OK).json({

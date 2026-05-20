@@ -11,7 +11,8 @@ const {
     getProjectMembers,
     getBoardColumns,
     getIssueTypes,
-    deleteBoardColumn
+    deleteBoardColumn,
+    deleteIssueType
 } = require("../controllers/projectController");
 const auth = require("../middleware/auth");
 
@@ -38,5 +39,6 @@ routerAPI.delete("/:projectId/board-columns/:columnName", deleteBoardColumn);
 // Project Issue Types
 routerAPI.get("/:projectId/issue-types", getIssueTypes);
 routerAPI.put("/:projectId/issue-types", updateIssueTypes);
+routerAPI.delete("/:projectId/issue-types/:typeName", deleteIssueType);
 
 module.exports = routerAPI;

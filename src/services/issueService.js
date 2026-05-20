@@ -104,7 +104,7 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     }
     return await issueDAO.getIssues(queryFilter);
 };
-const updateIssueService = async (issueId, updateData, userId) => {
+const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);
     if (!originalIssue) {
@@ -224,7 +224,7 @@ const updateIssueService = async (issueId, updateData, userId) => {
         // Dùng Promise.all để các tiến trình tạo history có thể chạy song song
         await Promise.all(changes.map(change => {
             const displayName = fieldDisplayNames[change.field] || change.field;
-            return createHistoryRecord(issueId, userId, displayName, change.oldValue, change.newValue);
+            return createHistoryRecord(issueId, userId, displayName, change.oldValue, change.newValue, io);
         }));
     }
 
