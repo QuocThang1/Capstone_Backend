@@ -23,6 +23,11 @@ class AccountDAO {
             });
     }
 
+    async getAccountsByIds(accountIds) {
+        return await Account.find({ _id: { $in: accountIds } })
+            .select("_id fullName username email skills role");
+    }
+
     async updatePassword(userId, hashedPassword) {
         return await Account.findByIdAndUpdate(
             userId,

@@ -6,6 +6,7 @@ const { createIssueService,
     createSubtaskService,
     getSubtasksService
 } = require("../services/issueService");
+const { suggestAssigneesForIssue } = require("../services/aiService");
 const { StatusCodes } = require("http-status-codes");
 
 const createIssue = async (req, res, next) => {
@@ -127,6 +128,23 @@ const getSubtasks = async (req, res, next) => {
     }
 };
 
+const suggestAssignees = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+
+        const suggestions = await suggestAssigneesForIssue(issueId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "AI generated suggestions successfully",
+            data: suggestions
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getIssuesBySprint,
@@ -134,5 +152,6 @@ module.exports = {
     updateIssue,
     deleteIssue,
     createSubtask,
-    getSubtasks
+    getSubtasks,
+    suggestAssignees
 };
