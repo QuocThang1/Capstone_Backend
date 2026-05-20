@@ -1,4 +1,5 @@
 const Issue = require("../models/issue");
+const mongoose = require("mongoose");
 
 class IssueDAO {
     async createIssue(issueData) {
@@ -68,6 +69,25 @@ class IssueDAO {
             assigneeId: { $ne: null },
             parentId: null
         }).populate('assigneeId');
+    }
+
+    async getMemberWorkloads(projectId) {
+        return await Issue.aggregate([
+            {
+                $match: {
+                    projectId: new mongoose.Types.ObjectId(projectId),
+                    resolution: 'Unresolved',
+                    assigneeId: { $ne: null }
+                }
+            },
+            {
+                $group: {
+                    _id: '$assigneeId',
+                    activeTasksCount: { $sum: 1 },
+                    totalPoints: { $sum: '$storyPoints' }
+                }
+            }
+        ]);
     }
 }
 
