@@ -136,7 +136,45 @@ const updateProjectService = async (projectId, updateData, userId, userRole) => 
         updateData.key = updateData.key.toUpperCase();
     }
 
-    const updatedProject = await projectDAO.updateProject(projectId, updateData);
+    const finalUpdateData = {
+        name: updateData.name,
+        key: updateData.key,
+        description: updateData.description,
+        boardColumns: updateData.boardColumns,
+        issueTypes: updateData.issueTypes,
+    };
+
+    if (updateData.hasOwnProperty('notifHour')) {
+        const h = updateData.notifHour || 0;
+        const m = updateData.notifMinute || 0;
+        finalUpdateData.notificationCron = `${m} ${h} * * *`; // Chạy mỗi ngày lúc H giờ M phút
+    }
+
+    if (updateData.hasOwnProperty('bottleType') && updateData.hasOwnProperty('bottleValue')) {
+        const type = updateData.bottleType;
+        const value = parseInt(updateData.bottleValue, 10);
+
+        if (type === 'hourly') {
+            finalUpdateData.bottleneckCron = `0 */${value} * * *`; // Quét mỗi "N" số giờ
+        } else if (type === 'minutes') {
+            finalUpdateData.bottleneckCron = `*/${value} * * * *`; // Quét mỗi "N" số phút
+        }
+    }
+
+    if (updateData.hasOwnProperty('isNotificationActive')) {
+        finalUpdateData.isNotificationActive = updateData.isNotificationActive;
+    }
+    if (updateData.hasOwnProperty('isBottleneckActive')) {
+        finalUpdateData.isBottleneckActive = updateData.isBottleneckActive;
+    }
+
+    Object.keys(finalUpdateData).forEach(key => {
+        if (finalUpdateData[key] === undefined) {
+            delete finalUpdateData[key];
+        }
+    });
+
+    const updatedProject = await projectDAO.updateProject(projectId, finalUpdateData);
     return updatedProject;
 };
 

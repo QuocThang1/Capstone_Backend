@@ -62,14 +62,21 @@ class IssueDAO {
         return await Issue.find({ sprintId, resolution: { $ne: 'Done' } });
     };
 
-    async getDueIssues(startOfDay, endOfDay) {
-        return await Issue.find({
+    async getDueIssues(startOfDay, endOfDay, projectId = null) {
+        const queryFilter = {
             dueDate: { $gte: startOfDay, $lte: endOfDay },
             resolution: { $ne: 'Done' },
             assigneeId: { $ne: null },
             parentId: null
-        }).populate('assigneeId');
+        };
+
+        if (projectId) {
+            queryFilter.projectId = projectId;
+        }
+
+        return await Issue.find(queryFilter).populate('assigneeId');
     }
+
 
     async getMemberWorkloads(projectId) {
         return await Issue.aggregate([

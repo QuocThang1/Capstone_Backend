@@ -13,6 +13,7 @@ const {
     deleteBoardColumnService,
     deleteIssueTypeService
 } = require("../services/projectService");
+const { rescheduleProjectCrons } = require('../services/cronService');
 const { StatusCodes } = require("http-status-codes");
 
 const createProject = async (req, res, next) => {
@@ -74,6 +75,11 @@ const updateProject = async (req, res, next) => {
         const updateData = req.body;
 
         const project = await updateProjectService(projectId, updateData, userId, userRole);
+
+        const io = req.app.get('io');
+        if (io && project) {
+            rescheduleProjectCrons(project, io);
+        }
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
