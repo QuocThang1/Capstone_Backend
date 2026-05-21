@@ -18,7 +18,7 @@ const deleteNotificationService = async (notificationId, userId) => {
 };
 
 // Hàm xử lý việc xác định Issue đến hạn và tạo thông báo
-const generateDueIssueNotifications = async (io) => {
+const generateDueIssueNotifications = async (io, projectId) => {
     try {
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
@@ -28,7 +28,7 @@ const generateDueIssueNotifications = async (io) => {
 
         const todayString = startOfDay.toISOString().split('T')[0];
 
-        const dueIssues = await issueDAO.getDueIssues(startOfDay, endOfDay);
+        const dueIssues = await issueDAO.getDueIssues(startOfDay, endOfDay, projectId);
 
         for (const issue of dueIssues) {
             try {
@@ -41,6 +41,8 @@ const generateDueIssueNotifications = async (io) => {
                 };
 
                 const newNotif = await notificationDAO.createNotification(notificationData);
+
+                const populatedNotif = await notificationDAO.getNotificationByIdAndUser(newNotif._id, newNotif.recipientId);
 
                 // Nếu khởi tạo thành công (không bị lỗi trùng lặp dữ liệu), sẽ gửi realtime qua socket
                 if (io) {

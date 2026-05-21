@@ -2,11 +2,12 @@ const issueDAO = require("../DAO/issueDAO");
 const bottleneckDAO = require("../DAO/bottleneckDAO");
 const historyDAO = require("../DAO/historyDAO");
 
-const checkWaitTimeBottleneck = async (io) => {
+const checkWaitTimeBottleneck = async (io, projectId) => {
     console.log("Checking Wait Time Bottleneck...");
     const now = new Date();
 
     const activeIssues = await issueDAO.getIssues({
+        projectId: projectId,
         resolution: { $ne: 'Done' },
         startDate: { $lte: now, $ne: null },
         timeExpect: { $gt: 0 }
