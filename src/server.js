@@ -1,5 +1,9 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
+const envPath = path.resolve(__dirname, '.env');
+require('dotenv').config({ path: envPath });
+// Diagnostic: show which .env was loaded and whether critical vars exist
+console.log(`Loaded env from: ${envPath}`);
+console.log('MONGO_DB_URL present:', !!process.env.MONGO_DB_URL);
 
 const express = require('express')
 const cors = require('cors')
