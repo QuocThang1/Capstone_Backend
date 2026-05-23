@@ -49,6 +49,17 @@ const issueSchema = new mongoose.Schema(
         requiredSkills: [{
             type: String,
         }],
+        attachments: [{
+            publicId: { type: String, required: true },
+            url: { type: String, required: true },
+            filename: { type: String, required: true },
+            uploadedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Account",
+                required: true
+            },
+            uploadedAt: { type: Date, default: Date.now }
+        }],
         status: {
             type: String,
             default: "To Do", // Lưu tên cột Kanban

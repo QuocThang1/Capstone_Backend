@@ -11,6 +11,7 @@ class IssueDAO {
         return await Issue.find(filter)
             .populate('reporterId', 'username fullName email')
             .populate('assigneeId', 'username fullName email')
+            .populate('attachments.uploadedBy', 'username fullName email')
             .sort({ createdAt: -1 });
     }
 
@@ -25,7 +26,8 @@ class IssueDAO {
             { new: true }
         )
             .populate('reporterId', 'username fullName email')
-            .populate('assigneeId', 'username fullName email');
+            .populate('assigneeId', 'username fullName email')
+            .populate('attachments.uploadedBy', 'username fullName email');
     }
 
     async deleteIssue(issueId) {

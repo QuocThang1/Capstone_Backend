@@ -8,7 +8,7 @@ const { StatusCodes } = require("http-status-codes");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const suggestAssigneesForIssue = async (issueId, userId) => {
-    // 1. Thu thập dữ liệu
+
     const issue = await issueDAO.getIssueById(issueId);
     if (!issue) throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
 
@@ -35,7 +35,6 @@ const suggestAssigneesForIssue = async (issueId, userId) => {
         };
     });
 
-    // 2. Viết Prompt Engineering (AI Prompt)
     // Tối ưu để AI tập trung vào đánh giá Skill và Load Balancing
     const prompt = `You are an expert Agile Team Manager. I have an issue that needs to be assigned.
     Analyze the issue requirements and evaluate the team members to recommend the best candidates.

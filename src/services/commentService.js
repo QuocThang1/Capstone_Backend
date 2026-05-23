@@ -1,6 +1,7 @@
 const commentDAO = require("../DAO/commentDAO");
 const issueDAO = require("../DAO/issueDAO");
 const projectDAO = require("../DAO/projectDAO");
+const historyService = require("./historyService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
@@ -31,6 +32,18 @@ const createCommentService = async (req, commentData, authorId) => {
     const io = req.app.get('io');
     // Phát sự kiện đến tất cả client trong phòng của issue này
     io.to(issueId).emit('new_comment', populatedComment);
+
+    const shortContent = content.length > 50 ? content.substring(0, 50) + "..." : content;
+    const historyActionName = parentId ? "Replied to a Comment" : "Added a Comment";
+
+    await historyService.createHistoryRecord(
+        issueId,
+        authorId,
+        historyActionName,
+        null,
+        `"${shortContent}"`,
+        io
+    );
 
     return populatedComment;
 };

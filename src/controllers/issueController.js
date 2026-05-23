@@ -4,7 +4,9 @@ const { createIssueService,
     updateIssueService,
     deleteIssueService,
     createSubtaskService,
-    getSubtasksService
+    getSubtasksService,
+    uploadAttachmentService,
+    deleteAttachmentService
 } = require("../services/issueService");
 const { suggestAssigneesForIssue } = require("../services/aiService");
 const { StatusCodes } = require("http-status-codes");
@@ -145,6 +147,38 @@ const suggestAssignees = async (req, res, next) => {
     }
 };
 
+const uploadAttachment = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+        const file = req.file;
+
+        if (!file) throw new ApiError(StatusCodes.BAD_REQUEST, "No file uploaded");
+
+        const io = req.app.get('io');
+        const attachments = await uploadAttachmentService(issueId, userId, file, io);
+
+        res.status(StatusCodes.OK).json({ EC: 0, EM: "Uploaded successfully", data: attachments });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteAttachment = async (req, res, next) => {
+    try {
+        const { issueId, attachmentId } = req.params;
+        const userId = req.user._id;
+
+        const io = req.app.get('io');
+        const attachments = await deleteAttachmentService(issueId, attachmentId, userId, io);
+
+        res.status(StatusCodes.OK).json({ EC: 0, EM: "Deleted successfully", data: attachments });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 module.exports = {
     createIssue,
     getIssuesBySprint,
@@ -153,5 +187,7 @@ module.exports = {
     deleteIssue,
     createSubtask,
     getSubtasks,
-    suggestAssignees
+    suggestAssignees,
+    uploadAttachment,
+    deleteAttachment
 };
