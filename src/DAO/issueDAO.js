@@ -1,4 +1,5 @@
 const Issue = require("../models/issue");
+const mongoose = require("mongoose");
 
 class IssueDAO {
     async createIssue(issueData) {
@@ -10,6 +11,7 @@ class IssueDAO {
         return await Issue.find(filter)
             .populate('reporterId', 'username fullName email')
             .populate('assigneeId', 'username fullName email')
+            .populate('attachments.uploadedBy', 'username fullName email')
             .sort({ createdAt: -1 });
     }
 
@@ -24,7 +26,8 @@ class IssueDAO {
             { new: true }
         )
             .populate('reporterId', 'username fullName email')
-            .populate('assigneeId', 'username fullName email');
+            .populate('assigneeId', 'username fullName email')
+            .populate('attachments.uploadedBy', 'username fullName email');
     }
 
     async deleteIssue(issueId) {
@@ -48,6 +51,11 @@ class IssueDAO {
         return await Issue.countDocuments({ projectId, status });
     }
 
+    async countIssuesByType(projectId, type) {
+        return await Issue.countDocuments({ projectId, type });
+    }
+
+
     async countIssuesBySprint(sprintId) {
         return await Issue.countDocuments({ sprintId });
     };
@@ -56,13 +64,39 @@ class IssueDAO {
         return await Issue.find({ sprintId, resolution: { $ne: 'Done' } });
     };
 
-    async getDueIssues(startOfDay, endOfDay) {
-        return await Issue.find({
+    async getDueIssues(startOfDay, endOfDay, projectId = null) {
+        const queryFilter = {
             dueDate: { $gte: startOfDay, $lte: endOfDay },
             resolution: { $ne: 'Done' },
             assigneeId: { $ne: null },
             parentId: null
-        }).populate('assigneeId');
+        };
+
+        if (projectId) {
+            queryFilter.projectId = projectId;
+        }
+
+        return await Issue.find(queryFilter).populate('assigneeId');
+    }
+
+
+    async getMemberWorkloads(projectId) {
+        return await Issue.aggregate([
+            {
+                $match: {
+                    projectId: new mongoose.Types.ObjectId(projectId),
+                    resolution: 'Unresolved',
+                    assigneeId: { $ne: null }
+                }
+            },
+            {
+                $group: {
+                    _id: '$assigneeId',
+                    activeTasksCount: { $sum: 1 },
+                    totalPoints: { $sum: '$storyPoints' }
+                }
+            }
+        ]);
     }
 }
 

@@ -4,8 +4,11 @@ const { createIssueService,
     updateIssueService,
     deleteIssueService,
     createSubtaskService,
-    getSubtasksService
+    getSubtasksService,
+    uploadAttachmentService,
+    deleteAttachmentService
 } = require("../services/issueService");
+const { suggestAssigneesForIssue } = require("../services/aiService");
 const { StatusCodes } = require("http-status-codes");
 
 const createIssue = async (req, res, next) => {
@@ -62,7 +65,9 @@ const updateIssue = async (req, res, next) => {
         const updateData = req.body;
         const userId = req.user._id;
 
-        const updatedIssue = await updateIssueService(issueId, updateData, userId);
+        const io = req.app.get('io');
+
+        const updatedIssue = await updateIssueService(issueId, updateData, userId, io);
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -125,6 +130,55 @@ const getSubtasks = async (req, res, next) => {
     }
 };
 
+const suggestAssignees = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+
+        const suggestions = await suggestAssigneesForIssue(issueId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "AI generated suggestions successfully",
+            data: suggestions
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const uploadAttachment = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+        const file = req.file;
+
+        if (!file) throw new ApiError(StatusCodes.BAD_REQUEST, "No file uploaded");
+
+        const io = req.app.get('io');
+        const attachments = await uploadAttachmentService(issueId, userId, file, io);
+
+        res.status(StatusCodes.OK).json({ EC: 0, EM: "Uploaded successfully", data: attachments });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteAttachment = async (req, res, next) => {
+    try {
+        const { issueId, attachmentId } = req.params;
+        const userId = req.user._id;
+
+        const io = req.app.get('io');
+        const attachments = await deleteAttachmentService(issueId, attachmentId, userId, io);
+
+        res.status(StatusCodes.OK).json({ EC: 0, EM: "Deleted successfully", data: attachments });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 module.exports = {
     createIssue,
     getIssuesBySprint,
@@ -132,5 +186,8 @@ module.exports = {
     updateIssue,
     deleteIssue,
     createSubtask,
-    getSubtasks
+    getSubtasks,
+    suggestAssignees,
+    uploadAttachment,
+    deleteAttachment
 };

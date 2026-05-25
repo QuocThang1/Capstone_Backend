@@ -10,8 +10,10 @@ const {
     updateIssueTypesService,
     getBoardColumnsService,
     getIssueTypesService,
-    deleteBoardColumnService
+    deleteBoardColumnService,
+    deleteIssueTypeService
 } = require("../services/projectService");
+const { rescheduleProjectCrons } = require('../services/cronService');
 const { StatusCodes } = require("http-status-codes");
 
 const createProject = async (req, res, next) => {
@@ -73,6 +75,11 @@ const updateProject = async (req, res, next) => {
         const updateData = req.body;
 
         const project = await updateProjectService(projectId, updateData, userId, userRole);
+
+        const io = req.app.get('io');
+        if (io && project) {
+            rescheduleProjectCrons(project, io);
+        }
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -194,6 +201,24 @@ const updateIssueTypes = async (req, res, next) => {
     }
 };
 
+const deleteIssueType = async (req, res, next) => {
+    try {
+        const { projectId, typeName } = req.params;
+        const userId = req.user._id;
+        const { targetTypeName } = req.body;
+
+        const result = await deleteIssueTypeService(projectId, userId, typeName, targetTypeName);
+
+        res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: result.message,
+            data: result.data
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getBoardColumns = async (req, res, next) => {
     try {
         const { projectId } = req.params;
@@ -228,5 +253,6 @@ module.exports = {
     updateIssueTypes,
     getBoardColumns,
     getIssueTypes,
-    deleteBoardColumn
+    deleteBoardColumn,
+    deleteIssueType
 };

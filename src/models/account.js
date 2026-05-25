@@ -43,6 +43,11 @@ const accountSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        bio: {
+            type: String,
+            required: false,
+            maxlength: 500,
+        },
         googleId: {
             type: String,
             required: false,
@@ -67,6 +72,9 @@ const accountSchema = new mongoose.Schema(
         starredProjects: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: "Project"
+        }],
+        skills: [{
+            type: String,
         }]
     },
     {

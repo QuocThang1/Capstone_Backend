@@ -4,15 +4,18 @@ const {
     getAccountService,
     updateProfileService,
     toggleStarProjectService,
-    getStarredProjectsService
+    getStarredProjectsService,
+    forgotPasswordService,
+    changePasswordService
 } = require("../services/accountService");
 const { StatusCodes } = require("http-status-codes");
 const OTP = require("../models/otp");
 const transporter = require("../utils/mailer");
+const ApiError = require("../utils/ApiError");
 
 const handleSignUp = async (req, res, next) => {
     try {
-        const { username, password, fullName, email, phone, dob, gender } = req.body;
+        const { username, password, fullName, email, phone, dob, gender, skills } = req.body;
 
         const user = await handleSignUpService({
             username,
@@ -21,7 +24,8 @@ const handleSignUp = async (req, res, next) => {
             email,
             phone,
             dob,
-            gender
+            gender,
+            skills
         });
 
         return res.status(StatusCodes.CREATED).json({
@@ -72,7 +76,7 @@ const getAccount = async (req, res, next) => {
 
 const updateProfile = async (req, res, next) => {
     try {
-        const { username, fullName, email, phone, dob, gender } = req.body;
+        const { username, fullName, email, phone, dob, gender, skills } = req.body;
         const userId = req.user._id;
 
         const user = await updateProfileService(userId, {
@@ -82,6 +86,7 @@ const updateProfile = async (req, res, next) => {
             phone,
             dob,
             gender,
+            skills
         });
 
         return res.status(StatusCodes.OK).json({
@@ -108,11 +113,14 @@ const sendOTP = async (req, res, next) => {
         // Generate 6-digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // Delete any existing OTPs for this email
+        // Xóa OTP cũ
         await OTP.deleteMany({ email });
 
-        // Create new OTP
-        const newOtp = new OTP({ email, otp });
+        // Tạo expiresAt (10 phút)
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        // Tạo OTP mới với expiresAt
+        const newOtp = new OTP({ email, otp, expiresAt });
         await newOtp.save();
 
         // Send email
@@ -158,7 +166,8 @@ const sendOTP = async (req, res, next) => {
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
-            EM: "OTP sent successfully"
+            EM: "OTP sent successfully",
+            expiresAt: expiresAt.toISOString() // FE dùng để countdown
         });
     } catch (error) {
         console.error("Send OTP error:", error);
@@ -184,6 +193,16 @@ const verifyOTP = async (req, res, next) => {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 EC: 1,
                 EM: "Invalid or expired OTP"
+            });
+        }
+
+        // Kiểm tra hết hạn
+        if (otpDoc.expiresAt && otpDoc.expiresAt < new Date()) {
+            // Xóa OTP hết hạn
+            await OTP.deleteOne({ _id: otpDoc._id });
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                EC: 1,
+                EM: "OTP has expired"
             });
         }
 
@@ -235,6 +254,80 @@ const getStarredProjects = async (req, res, next) => {
     }
 };
 
+const forgotPassword = async (req, res, next) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                EC: 1,
+                EM: "Email, OTP, and new password are required"
+            });
+        }
+
+        // Verify OTP
+        const otpDoc = await OTP.findOne({ email, otp });
+        if (!otpDoc) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                EC: 1,
+                EM: "Invalid or expired OTP"
+            });
+        }
+
+        // Delete the OTP after verification
+        await OTP.deleteOne({ _id: otpDoc._id });
+
+        // Reset password
+        const result = await forgotPasswordService(email, newPassword);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Password reset successfully",
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const changePassword = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { oldPassword, otp, newPassword } = req.body;
+
+        if (!oldPassword || !otp || !newPassword) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                EC: 1,
+                EM: "Old password, OTP, and new password are required"
+            });
+        }
+
+        // Verify OTP
+        const email = req.user.email;
+        const otpDoc = await OTP.findOne({ email, otp });
+        if (!otpDoc) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                EC: 1,
+                EM: "Invalid or expired OTP"
+            });
+        }
+
+        // Delete the OTP after verification
+        await OTP.deleteOne({ _id: otpDoc._id });
+
+        // Change password
+        const result = await changePasswordService(userId, oldPassword, newPassword);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Password changed successfully",
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     handleSignUp,
     handleLogin,
@@ -243,5 +336,7 @@ module.exports = {
     sendOTP,
     verifyOTP,
     toggleStarProject,
-    getStarredProjects
+    getStarredProjects,
+    forgotPassword,
+    changePassword
 };

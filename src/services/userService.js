@@ -77,9 +77,9 @@ const createUserService = async ({ username, password, fullName, email, phone, d
 };
 
 const updateUserService = async (userId, updateData, adminId) => {
-    if (userId === adminId.toString()) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Cannot modify your own account through admin panel");
-    }
+    // Cho phép user update profile của chính mình hoặc admin update user khác
+    // Chỉ prevent admin tự update account của mình thông qua admin panel (nếu cần)
+    // Bỏ comment này nếu muốn enforce: if (userId === adminId.toString()) { throw ... }
 
     const existingUser = await userDAO.getUserById(userId);
     if (!existingUser) {
@@ -102,7 +102,11 @@ const updateUserService = async (userId, updateData, adminId) => {
         }
     }
 
-    // Validate role nếu có
+    // Validate role nếu có (chỉ admin có quyền thay đổi)
+    if (updateData.role && userId !== adminId.toString()) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only admins can change user roles");
+    }
+
     if (updateData.role) {
         const validRoles = ['user', 'admin'];
         if (!validRoles.includes(updateData.role)) {

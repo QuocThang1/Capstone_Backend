@@ -136,7 +136,45 @@ const updateProjectService = async (projectId, updateData, userId, userRole) => 
         updateData.key = updateData.key.toUpperCase();
     }
 
-    const updatedProject = await projectDAO.updateProject(projectId, updateData);
+    const finalUpdateData = {
+        name: updateData.name,
+        key: updateData.key,
+        description: updateData.description,
+        boardColumns: updateData.boardColumns,
+        issueTypes: updateData.issueTypes,
+    };
+
+    if (updateData.hasOwnProperty('notifHour')) {
+        const h = updateData.notifHour || 0;
+        const m = updateData.notifMinute || 0;
+        finalUpdateData.notificationCron = `${m} ${h} * * *`; // Chạy mỗi ngày lúc H giờ M phút
+    }
+
+    if (updateData.hasOwnProperty('bottleType') && updateData.hasOwnProperty('bottleValue')) {
+        const type = updateData.bottleType;
+        const value = parseInt(updateData.bottleValue, 10);
+
+        if (type === 'hourly') {
+            finalUpdateData.bottleneckCron = `0 */${value} * * *`; // Quét mỗi "N" số giờ
+        } else if (type === 'minutes') {
+            finalUpdateData.bottleneckCron = `*/${value} * * * *`; // Quét mỗi "N" số phút
+        }
+    }
+
+    if (updateData.hasOwnProperty('isNotificationActive')) {
+        finalUpdateData.isNotificationActive = updateData.isNotificationActive;
+    }
+    if (updateData.hasOwnProperty('isBottleneckActive')) {
+        finalUpdateData.isBottleneckActive = updateData.isBottleneckActive;
+    }
+
+    Object.keys(finalUpdateData).forEach(key => {
+        if (finalUpdateData[key] === undefined) {
+            delete finalUpdateData[key];
+        }
+    });
+
+    const updatedProject = await projectDAO.updateProject(projectId, finalUpdateData);
     return updatedProject;
 };
 
@@ -388,6 +426,66 @@ const updateIssueTypesService = async (projectId, userId, issueTypes) => {
     return updatedProject.issueTypes;
 };
 
+const deleteIssueTypeService = async (projectId, userId, typeName, targetTypeName) => {
+    const project = await projectDAO.getProjectById(projectId);
+    if (!project) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
+    }
+
+    // Kiểm tra quyền: chỉ member/leader mới được xóa (hoặc set strict hơn tùy bạn)
+    const isMember = project.members.some(m => m.accountId._id.toString() === userId.toString());
+    if (!isMember) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members can delete issue types.");
+    }
+
+    // Không cho phép xóa cụm "Task" mặc định (bắt buộc phải có)
+    if (typeName === "Task") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "The 'Task' issue type cannot be deleted.");
+    }
+
+    const typeToDelete = project.issueTypes.find(t => t.name === typeName);
+    if (!typeToDelete) {
+        throw new ApiError(StatusCodes.NOT_FOUND, `Issue type "${typeName}" not found.`);
+    }
+
+    // Đếm số lượng issue thuộc type cần xóa
+    const issueCount = await issueDAO.countIssuesByType(projectId, typeName);
+
+    if (issueCount > 0) {
+        // Nếu có issue, kiểm tra xem người dùng đã cung cấp Target Type chưa
+        if (!targetTypeName) {
+            // Yêu cầu người dùng chọn Type đích (Loại bỏ type hiện tại ra khỏi danh sách)
+            const availableTypes = project.issueTypes
+                .filter(t => t.name !== typeName)
+                .map(t => t.name);
+
+            throw new ApiError(StatusCodes.BAD_REQUEST, `There are ${issueCount} issues with type "${typeName}". Please specify a target issue type to move them to before deletion.`)
+                .withContext({ availableTypes, requiresMigration: true });
+        }
+
+        // Người dùng đã chọn type đích, tiến hành cập nhật
+        const targetType = project.issueTypes.find(t => t.name === targetTypeName);
+        if (!targetType) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, `Target issue type "${targetTypeName}" is not valid.`);
+        }
+
+        // Đẩy toàn bộ Issue qua type mới
+        await issueDAO.updateManyIssues(
+            { projectId, type: typeName },
+            { $set: { type: targetTypeName } }
+        );
+    }
+
+    // Xóa field khỏi mảng issueTypes của project
+    const updatedTypes = project.issueTypes.filter(t => t.name !== typeName);
+    const updatedProject = await projectDAO.updateProject(projectId, { issueTypes: updatedTypes });
+
+    return {
+        data: updatedProject.issueTypes,
+        message: `Issue type "${typeName}" deleted successfully.`
+    };
+};
+
 const getBoardColumnsService = async (projectId, userId) => {
     const project = await projectDAO.getProjectById(projectId);
     if (!project) {
@@ -431,5 +529,6 @@ module.exports = {
     updateIssueTypesService,
     getBoardColumnsService,
     getIssueTypesService,
-    deleteBoardColumnService
+    deleteBoardColumnService,
+    deleteIssueTypeService
 };

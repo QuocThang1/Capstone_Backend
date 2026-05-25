@@ -51,6 +51,16 @@ const projectSchema = new mongoose.Schema(
             ref: "Workflow",
             required: false,
         },
+        notificationCron: {
+            type: String,
+            default: '0 8 * * *'
+        },
+        bottleneckCron: {
+            type: String,
+            default: '0 * * * *'
+        },
+        isNotificationActive: { type: Boolean, default: true },
+        isBottleneckActive: { type: Boolean, default: true },
 
         issueSequence: {
             type: Number,

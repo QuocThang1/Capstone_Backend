@@ -5,6 +5,7 @@ const commentDAO = require("../DAO/commentDAO");
 const historyDAO = require("../DAO/historyDAO");
 const mongoose = require("mongoose");
 const { createHistoryRecord } = require("./historyService");
+const { cloudinary } = require("../config/cloudinary");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
@@ -104,7 +105,7 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     }
     return await issueDAO.getIssues(queryFilter);
 };
-const updateIssueService = async (issueId, updateData, userId) => {
+const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);
     if (!originalIssue) {
@@ -195,6 +196,10 @@ const updateIssueService = async (issueId, updateData, userId) => {
 
     if (updateData.status) {
         if (updateData.status === "Done") {
+            if (!originalIssue.attachments || originalIssue.attachments.length === 0) {
+                throw new ApiError(StatusCodes.BAD_REQUEST, "You must submit supporting attachments before the status changes to Done.");
+            }
+
             updateData.resolution = "Done";
             updateData.completedAt = new Date();
         } else {
@@ -224,7 +229,7 @@ const updateIssueService = async (issueId, updateData, userId) => {
         // Dùng Promise.all để các tiến trình tạo history có thể chạy song song
         await Promise.all(changes.map(change => {
             const displayName = fieldDisplayNames[change.field] || change.field;
-            return createHistoryRecord(issueId, userId, displayName, change.oldValue, change.newValue);
+            return createHistoryRecord(issueId, userId, displayName, change.oldValue, change.newValue, io);
         }));
     }
 
@@ -317,6 +322,61 @@ const getSubtasksService = async (parentId, userId) => {
     return subtasks;
 };
 
+const uploadAttachmentService = async (issueId, userId, file, io) => {
+    const issue = await issueDAO.getIssueById(issueId);
+    if (!issue) throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
+
+    const project = await projectDAO.checkMemberExists(issue.projectId, userId);
+    if (!project) throw new ApiError(StatusCodes.FORBIDDEN, "Access denied.");
+
+    // Dữ liệu bóc tách từ Multer-Cloudinary
+    const newAttachment = {
+        publicId: file.filename, // Trong package này, filename chính là public_id trên Cloudinary
+        url: file.path,
+        filename: file.originalname,
+        uploadedBy: userId
+    };
+
+    // Đẩy vào array của Mongoose
+    issue.attachments.push(newAttachment);
+    await issue.save();
+
+    // Ghi Nhận Lịch Sử + Phát Socket
+    await createHistoryRecord(issueId, userId, "Added Attachment", null, newAttachment.filename, io);
+
+    return issue.attachments;
+};
+
+const deleteAttachmentService = async (issueId, attachmentId, userId, io) => {
+    const issue = await issueDAO.getIssueById(issueId);
+    if (!issue) throw new ApiError(StatusCodes.NOT_FOUND, "Issue not found.");
+
+    const project = await projectDAO.checkMemberExists(issue.projectId, userId);
+    if (!project) throw new ApiError(StatusCodes.FORBIDDEN, "Access denied.");
+
+    // Tìm file trong issue
+    const attachment = issue.attachments.id(attachmentId);
+    if (!attachment) throw new ApiError(StatusCodes.NOT_FOUND, "Attachment not found.");
+
+    const filename = attachment.filename;
+
+    try {
+        // Xóa file vật lý trên máy chủ Cloudinary
+        await cloudinary.uploader.destroy(attachment.publicId);
+    } catch (err) {
+        console.error("Cloudinary delete object failed", err);
+    }
+
+    // Xóa khỏi Database
+    issue.attachments.pull(attachmentId);
+    await issue.save();
+
+    // Ghi nhận lịch sử + Bắn Real-Time
+    await createHistoryRecord(issueId, userId, "Removed Attachment", filename, null, io);
+
+    return issue.attachments;
+};
+
 module.exports = {
     createIssueService,
     getIssuesBySprintService,
@@ -324,5 +384,7 @@ module.exports = {
     updateIssueService,
     deleteIssueService,
     createSubtaskService,
-    getSubtasksService
+    getSubtasksService,
+    uploadAttachmentService,
+    deleteAttachmentService
 };

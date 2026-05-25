@@ -5,8 +5,11 @@ const { createIssue,
     updateIssue,
     deleteIssue,
     createSubtask,
-    getSubtasks
+    getSubtasks,
+    suggestAssignees
 } = require("../controllers/issueController");
+const { uploadCloud } = require("../config/cloudinary");
+const { uploadAttachment, deleteAttachment } = require("../controllers/issueController");
 const auth = require("../middleware/auth");
 
 const routerAPI = express.Router();
@@ -18,7 +21,9 @@ routerAPI.post("/", createIssue);
 routerAPI.get("/sprint/:sprintId", getIssuesBySprint);
 routerAPI.get("/project/:projectId", getIssuesByProject);
 routerAPI.get("/:issueId/subtasks", getSubtasks);
+routerAPI.get("/:issueId/suggest-assignees", suggestAssignees);
 routerAPI.put("/:issueId", updateIssue);
 routerAPI.delete("/:issueId", deleteIssue);
-
+routerAPI.post("/:issueId/attachments", uploadCloud.single('file'), uploadAttachment);
+routerAPI.delete("/:issueId/attachments/:attachmentId", deleteAttachment);
 module.exports = routerAPI;
