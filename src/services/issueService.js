@@ -210,8 +210,16 @@ const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const updatedIssue = await issueDAO.updateIssue(issueId, updateData);
 
+    // Cập nhật toàn bộ các subtask sang sprintId mới nếu issue này là task cha và có thay đổi sprintId
+    if (!originalIssue.parentId && updateData.hasOwnProperty('sprintId') && String(originalIssue.sprintId || '') !== String(updateData.sprintId || '')) {
+        await issueDAO.updateManyIssues(
+            { parentId: issueId },
+            { sprintId: updateData.sprintId }
+        );
+    }
+
     //Sau khi cập nhật thành công, tạo các bản ghi lịch sử
-    if (changes.length > 0 && !originalIssue.parentId) { // Chỉ tạo lịch sử cho issue cha
+    if (changes.length > 0) {
         // Mapping từ tên trường trong DB sang tên hiển thị thân thiện
         const fieldDisplayNames = {
             sprintId: 'Sprint',
@@ -296,6 +304,7 @@ const createSubtaskService = async (issueData, creatorId) => {
     const subtaskData = {
         ...issueData,
         projectId: parentIssue.projectId,
+        sprintId: parentIssue.sprintId,
         type: "Sub-task",
         title,
     };
