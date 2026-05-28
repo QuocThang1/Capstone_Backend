@@ -12,6 +12,8 @@ class IssueDAO {
             .populate('reporterId', 'username fullName email')
             .populate('assigneeId', 'username fullName email')
             .populate('attachments.uploadedBy', 'username fullName email')
+            .populate('projectId', 'name')
+            .populate('parentId', 'issueKey title')
             .sort({ createdAt: -1 });
     }
 

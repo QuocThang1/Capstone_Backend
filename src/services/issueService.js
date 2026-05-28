@@ -97,7 +97,6 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     if (filters.assigneeId) queryFilter.assigneeId = filters.assigneeId;
     if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
     if (filters.status) queryFilter.status = filters.status;
-    if (filters.status) queryFilter.status = filters.status;
 
     // Tìm kiếm theo một phần của Title (không phân biệt hoa/thường)
     if (filters.title) {
@@ -105,6 +104,42 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     }
     return await issueDAO.getIssues(queryFilter);
 };
+
+const getMyIssuesByProjectService = async (projectId, userId, filters = {}) => {
+    // Kiểm tra user có quyền truy cập project không
+    const project = await projectDAO.checkMemberExists(projectId, userId);
+    if (!project) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    const queryFilter = { projectId, assigneeId: userId }; // Chỉ lấy issue của mình
+
+    // Lọc theo type và sprint nếu có
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+
+    return await issueDAO.getIssues(queryFilter);
+};
+
+const getMyIssuesService = async (userId, filters = {}) => {
+    const queryFilter = { assigneeId: userId }; // Chỉ lấy issue của mình
+
+    // Nếu có truyền projectId, phải check quyền xem có ở trong project đó ko
+    if (filters.projectId) {
+        const project = await projectDAO.checkMemberExists(filters.projectId, userId);
+        if (!project) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+        }
+        queryFilter.projectId = filters.projectId;
+    }
+
+    // Lọc theo type và sprint nếu có
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+
+    return await issueDAO.getIssues(queryFilter);
+};
+
 const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);
@@ -390,6 +425,8 @@ module.exports = {
     createIssueService,
     getIssuesBySprintService,
     getIssuesByProjectService,
+    getMyIssuesByProjectService,
+    getMyIssuesService,
     updateIssueService,
     deleteIssueService,
     createSubtaskService,

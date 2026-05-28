@@ -1,6 +1,8 @@
 const { createIssueService,
     getIssuesBySprintService,
     getIssuesByProjectService,
+    getMyIssuesByProjectService,
+    getMyIssuesService,
     updateIssueService,
     deleteIssueService,
     createSubtaskService,
@@ -59,6 +61,41 @@ const getIssuesByProject = async (req, res, next) => {
         next(error);
     }
 };
+
+const getMyIssuesByProject = async (req, res, next) => {
+    try {
+        const { projectId } = req.params;
+        const userId = req.user._id;
+
+        const filters = {
+            type: req.query.type,
+            sprintId: req.query.sprint
+        };
+
+        const issues = await getMyIssuesByProjectService(projectId, userId, filters);
+        return res.status(StatusCodes.OK).json({ EC: 0, EM: "Success", data: issues });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const getMyIssues = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+
+        const filters = {
+            type: req.query.type,
+            sprintId: req.query.sprint,
+            projectId: req.query.project
+        };
+
+        const issues = await getMyIssuesService(userId, filters);
+        return res.status(StatusCodes.OK).json({ EC: 0, EM: "Success", data: issues });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const updateIssue = async (req, res, next) => {
     try {
         const { issueId } = req.params;
@@ -183,6 +220,8 @@ module.exports = {
     createIssue,
     getIssuesBySprint,
     getIssuesByProject,
+    getMyIssuesByProject,
+    getMyIssues,
     updateIssue,
     deleteIssue,
     createSubtask,
