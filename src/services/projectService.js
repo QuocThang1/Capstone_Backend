@@ -5,6 +5,8 @@ const issueDAO = require("../DAO/issueDAO");
 const historyDAO = require("../DAO/historyDAO");
 const commentDAO = require("../DAO/commentDAO");
 const workflowDAO = require("../DAO/workflowDAO");
+const jwt = require("jsonwebtoken");
+const { sendInvitationEmail } = require("../utils/mailer");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { get } = require("mongoose");
@@ -211,38 +213,106 @@ const deleteProjectService = async (projectId, userId, userRole) => {
 };
 
 const addMemberService = async (projectId, inviterId, memberEmail, role = 'member') => {
-    //Lấy thông tin project và kiểm tra quyền của người mời
     const project = await projectDAO.getProjectById(projectId);
-    if (!project) {
-        throw new ApiError(StatusCodes.NOT_FOUND, "Project not found.");
-    }
+    if (!project) throw new ApiError(StatusCodes.NOT_FOUND, "Project not found.");
 
+    // Nhờ populate lúc lấy project, ta lấy được tên người mời trực tiếp
     const inviter = project.members.find(m => m.accountId._id.toString() === inviterId.toString());
+    if (!inviter || inviter.role !== 'leader') throw new ApiError(StatusCodes.FORBIDDEN, "Only the project leader can invite members.");
 
-    //Chỉ leader mới có quyền mời thành viên mới
-    if (!inviter || inviter.role !== 'leader') {
-        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leaders can add new members.");
-    }
+    if (project.members.length >= 5) throw new ApiError(StatusCodes.BAD_REQUEST, "Project member limit (5) reached.");
 
-    // Kiểm tra số lượng thành viên hiện tại
-    if (project.members.length >= 5) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "The project has reached the maximum number of 5 members.");
-    }
-
-    //Tìm tài khoản được mời bằng email
     const accountToAdd = await accountDAO.findByEmail(memberEmail);
-    if (!accountToAdd) {
-        throw new ApiError(StatusCodes.NOT_FOUND, `Account with email "${memberEmail}" not found.`);
-    }
+    if (!accountToAdd) throw new ApiError(StatusCodes.BAD_REQUEST, "User with this email not found on the system.");
 
     const isAlreadyMember = project.members.some(m => m.accountId._id.toString() === accountToAdd._id.toString());
-    if (isAlreadyMember) {
-        throw new ApiError(StatusCodes.CONFLICT, `This user is already a member of the project.`);
+    if (isAlreadyMember) throw new ApiError(StatusCodes.BAD_REQUEST, "User is already a member of this project.");
+
+    // Tạo JWT Token mời
+    const token = jwt.sign(
+        { projectId, accountId: accountToAdd._id, role },
+        process.env.JWT_SECRET,
+        { expiresIn: '3d' }
+    );
+
+    // Xây dựng link Frontend. Bạn hãy đảm bảo thêm FRONTEND_URL vào file .env
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const acceptLink = `${frontendUrl}/project/invite?token=${token}`;
+
+    const inviterName = inviter.accountId.fullName || inviter.accountId.username;
+
+    // Tiến hành nổ Mail bất đồng bộ
+    await sendInvitationEmail(memberEmail, inviterName, project.name, acceptLink);
+
+    return { message: "Invitation email sent successfully." };
+};
+
+// THÊM: Service đồng ý tham gia khi Frontend gửi token lên
+const respondToInvitationService = async (token, currentUserId) => {
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { projectId, accountId, role } = decoded;
+
+        if (!currentUserId || currentUserId.toString() !== accountId.toString()) {
+            throw new ApiError(
+                StatusCodes.FORBIDDEN,
+                "This invitation does not belong to the currently signed-in account."
+            );
+        }
+
+        const project = await projectDAO.getProjectById(projectId);
+        if (!project) throw new ApiError(StatusCodes.NOT_FOUND, "Project not found.");
+
+        const isAlreadyMember = project.members.some(m => m.accountId._id.toString() === accountId.toString());
+        if (isAlreadyMember) throw new ApiError(StatusCodes.BAD_REQUEST, "You are already a member of this project.");
+
+        if (project.members.length >= 5) throw new ApiError(StatusCodes.BAD_REQUEST, "Project is full (Limit 5).");
+
+
+        const updatedProject = await projectDAO.addMember(projectId, accountId, role);
+        return updatedProject;
+    } catch (err) {
+        if (err instanceof ApiError) {
+            throw err;
+        }
+
+        if (err.name === "TokenExpiredError") {
+            throw new ApiError(StatusCodes.BAD_REQUEST, "Invitation token has expired.");
+        }
+
+        if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
+            throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid token.");
+        }
+
+        throw err;
+    }
+};
+
+// THÊM: Service tự đá thành viên
+const removeMemberService = async (projectId, requesterId, memberIdToRemove) => {
+    const project = await projectDAO.getProjectById(projectId);
+    if (!project) throw new ApiError(StatusCodes.NOT_FOUND, "Project not found.");
+
+    const requester = project.members.find(m => m.accountId._id.toString() === requesterId.toString());
+    if (!requester || requester.role !== 'leader') throw new ApiError(StatusCodes.FORBIDDEN, "Only the project leader can remove members.");
+
+    if (requesterId.toString() === memberIdToRemove.toString()) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "You cannot remove yourself.");
     }
 
-    //Thêm thành viên vào project
-    const updatedProject = await projectDAO.addMember(projectId, accountToAdd._id, role);
-    return updatedProject;
+    const isMember = project.members.some(m => m.accountId._id.toString() === memberIdToRemove.toString());
+    if (!isMember) throw new ApiError(StatusCodes.NOT_FOUND, "User is not a member of this project.");
+
+    // Rút quyền
+    await projectDAO.removeMember(projectId, memberIdToRemove);
+
+    // Hủy bỏ việc giao task hiện tại. Những task đã giao cho người này sẽ trả về Unassigned (null)
+    await issueDAO.updateManyIssues(
+        { projectId, assigneeId: memberIdToRemove },
+        { update: { $set: { assigneeId: null } } } // Mongoose update
+    );
+
+    return { message: "Member removed successfully." };
 };
 
 const getProjectMembersService = async (projectId, userId) => {
@@ -524,6 +594,8 @@ module.exports = {
     updateProjectService,
     deleteProjectService,
     addMemberService,
+    respondToInvitationService,
+    removeMemberService,
     getProjectMembersService,
     updateBoardColumnsService,
     updateIssueTypesService,

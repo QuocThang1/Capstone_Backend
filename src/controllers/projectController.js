@@ -5,6 +5,8 @@ const {
     updateProjectService,
     deleteProjectService,
     addMemberService,
+    respondToInvitationService,
+    removeMemberService,
     getProjectMembersService,
     updateBoardColumnsService,
     updateIssueTypesService,
@@ -113,22 +115,41 @@ const addMember = async (req, res, next) => {
     try {
         const { projectId } = req.params;
         const inviterId = req.user._id;
-        const { email, role } = req.body; // Lấy email và role từ body
+        const { email, role } = req.body;
 
-        if (!email) {
-            throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required.");
-        }
+        if (!email) throw new ApiError(StatusCodes.BAD_REQUEST, "Email is required.");
 
-        const updatedProject = await addMemberService(projectId, inviterId, email, role);
+        const result = await addMemberService(projectId, inviterId, email, role);
 
-        res.status(StatusCodes.OK).json({
+        res.status(StatusCodes.OK).json({ EC: 0, EM: result.message });
+    } catch (error) { next(error); }
+};
+
+const respondToInvitation = async (req, res, next) => {
+    try {
+        const { token } = req.body;
+        if (!token) throw new ApiError(StatusCodes.BAD_REQUEST, "Token is missing.");
+
+        const currentUserId = req.user._id;
+        const result = await respondToInvitationService(token, currentUserId);
+
+        return res.status(StatusCodes.OK).json({
             EC: 0,
-            EM: "Member added successfully.",
-            data: updatedProject.members // Trả về danh sách members mới
+            EM: result.message || "Success",
+            data: result.members || null
         });
-    } catch (error) {
-        next(error);
-    }
+    } catch (error) { next(error); }
+};
+
+const removeMember = async (req, res, next) => {
+    try {
+        const { projectId, accountId } = req.params;
+        const requesterId = req.user._id;
+
+        const result = await removeMemberService(projectId, requesterId, accountId);
+
+        res.status(StatusCodes.OK).json({ EC: 0, EM: result.message });
+    } catch (error) { next(error); }
 };
 
 const getProjectMembers = async (req, res, next) => {
@@ -248,6 +269,8 @@ module.exports = {
     updateProject,
     deleteProject,
     addMember,
+    respondToInvitation,
+    removeMember,
     getProjectMembers,
     updateBoardColumns,
     updateIssueTypes,
