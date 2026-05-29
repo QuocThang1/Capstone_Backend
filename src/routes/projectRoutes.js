@@ -6,6 +6,8 @@ const {
     updateProject,
     deleteProject,
     addMember,
+    respondToInvitation,
+    removeMember,
     updateBoardColumns,
     updateIssueTypes,
     getProjectMembers,
@@ -23,6 +25,7 @@ routerAPI.use(auth);
 // Project General
 routerAPI.post("/", createProject);
 routerAPI.get("/", getAllProjects);
+routerAPI.post("/respond-invite", respondToInvitation);
 routerAPI.get("/:projectId", getProjectById);
 routerAPI.put("/:projectId", updateProject);
 routerAPI.delete("/:projectId", deleteProject);
@@ -30,6 +33,7 @@ routerAPI.delete("/:projectId", deleteProject);
 // Project Members
 routerAPI.post("/:projectId/members", addMember);
 routerAPI.get("/:projectId/members", getProjectMembers);
+routerAPI.delete("/:projectId/members/:accountId", removeMember);
 
 // Project Board Columns
 routerAPI.get("/:projectId/board-columns", getBoardColumns);
