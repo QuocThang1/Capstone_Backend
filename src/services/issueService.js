@@ -188,21 +188,52 @@ const updateIssueService = async (issueId, updateData, userId, io) => {
             }
         }
 
-        // Kiểm tra Sprint có active không
-        if (originalIssue.sprintId) {
-            const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
-            if (sprint && sprint.status !== 'active') {
-                throw new ApiError(StatusCodes.FORBIDDEN, `Cannot change issue status because sprint "${sprint.name}" is not active.`);
-            }
-        }
+        const sprint = originalIssue.sprintId
+            ? await sprintDAO.getSprintById(originalIssue.sprintId)
+            : null;
 
-        //Kiểm tra quyền: chỉ leader hoặc assignee mới được đổi status
         const leader = project.members.find(m => m.role === 'leader');
         const isLeader = leader && leader.accountId._id.toString() === userId.toString();
         const isAssignee = originalIssue.assigneeId && originalIssue.assigneeId._id.toString() === userId.toString();
 
-        if (!isLeader && !isAssignee) {
-            throw new ApiError(StatusCodes.FORBIDDEN, "Only the project leader or the assignee can change the issue status.");
+        if (sprint?.status === 'completed') {
+            const isParentIssue = !originalIssue.parentId;
+            const isReopenFromDone = originalIssue.status === 'Done' && updateData.status !== 'Done';
+
+            if (!isParentIssue) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Sub-tasks cannot be changed when the sprint is completed."
+                );
+            }
+
+            if (!isReopenFromDone) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only issues in Done can be moved to another status after the sprint is completed."
+                );
+            }
+
+            if (!isLeader && !isAssignee) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only the project leader or the assignee can reopen a done issue."
+                );
+            }
+        } else {
+            if (sprint && sprint.status !== 'active') {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    `Cannot change issue status because sprint "${sprint.name}" is not active.`
+                );
+            }
+
+            if (!isLeader && !isAssignee) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only the project leader or the assignee can change the issue status."
+                );
+            }
         }
     }
 
@@ -245,6 +276,30 @@ const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const updatedIssue = await issueDAO.updateIssue(issueId, updateData);
 
+    if (
+        originalIssue.sprintId &&
+        !originalIssue.parentId &&
+        updateData.status !== originalIssue.status
+    ) {
+        const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
+
+        if (sprint && sprint.status === 'completed' && originalIssue.status === 'Done' && updateData.status !== 'Done') {
+            const backlogSprint = await sprintDAO.findSprintByName(originalIssue.projectId, 'Backlog');
+            if (!backlogSprint) {
+                throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find Backlog sprint.");
+            }
+
+            await issueDAO.updateManyIssues(
+                {
+                    $or: [
+                        { _id: issueId },
+                        { parentId: issueId }
+                    ]
+                },
+                { $set: { sprintId: backlogSprint._id } }
+            );
+        }
+    }
     // Cập nhật toàn bộ các subtask sang sprintId mới nếu issue này là task cha và có thay đổi sprintId
     if (!originalIssue.parentId && updateData.hasOwnProperty('sprintId') && String(originalIssue.sprintId || '') !== String(updateData.sprintId || '')) {
         await issueDAO.updateManyIssues(
