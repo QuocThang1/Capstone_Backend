@@ -4,7 +4,8 @@ const {
     updateSprintService,
     deleteSprintService,
     startSprintService,
-    completeSprintService
+    completeSprintService,
+    getOccupiedSprintRangesService
 } = require("../services/sprintService");
 const { StatusCodes } = require("http-status-codes");
 
@@ -112,11 +113,30 @@ const completeSprint = async (req, res, next) => {
     }
 };
 
+const getOccupiedSprintRanges = async (req, res, next) => {
+    try {
+        const { projectId } = req.params;
+        const userId = req.user._id;
+
+        const ranges = await getOccupiedSprintRangesService(projectId, userId);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Success",
+            data: ranges
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 module.exports = {
     createSprint,
     getSprintsByProject,
     updateSprint,
     deleteSprint,
     startSprint,
-    completeSprint
+    completeSprint,
+    getOccupiedSprintRanges
 };

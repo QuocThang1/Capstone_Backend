@@ -5,7 +5,8 @@ const {
     updateSprint,
     deleteSprint,
     startSprint,
-    completeSprint
+    completeSprint,
+    getOccupiedSprintRanges
 } = require("../controllers/sprintController");
 const auth = require("../middleware/auth");
 
@@ -13,6 +14,8 @@ const routerAPI = express.Router();
 
 routerAPI.use(auth);
 
+
+routerAPI.get("/project/:projectId/occupied-ranges", getOccupiedSprintRanges);
 routerAPI.post("/project/:projectId", createSprint);
 routerAPI.get("/project/:projectId", getSprintsByProject);
 routerAPI.put("/:sprintId", updateSprint);
