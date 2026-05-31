@@ -97,7 +97,6 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     if (filters.assigneeId) queryFilter.assigneeId = filters.assigneeId;
     if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
     if (filters.status) queryFilter.status = filters.status;
-    if (filters.status) queryFilter.status = filters.status;
 
     // Tìm kiếm theo một phần của Title (không phân biệt hoa/thường)
     if (filters.title) {
@@ -105,6 +104,42 @@ const getIssuesByProjectService = async (projectId, userId, filters = {}) => {
     }
     return await issueDAO.getIssues(queryFilter);
 };
+
+const getMyIssuesByProjectService = async (projectId, userId, filters = {}) => {
+    // Kiểm tra user có quyền truy cập project không
+    const project = await projectDAO.checkMemberExists(projectId, userId);
+    if (!project) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    const queryFilter = { projectId, assigneeId: userId }; // Chỉ lấy issue của mình
+
+    // Lọc theo type và sprint nếu có
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+
+    return await issueDAO.getIssues(queryFilter);
+};
+
+const getMyIssuesService = async (userId, filters = {}) => {
+    const queryFilter = { assigneeId: userId }; // Chỉ lấy issue của mình
+
+    // Nếu có truyền projectId, phải check quyền xem có ở trong project đó ko
+    if (filters.projectId) {
+        const project = await projectDAO.checkMemberExists(filters.projectId, userId);
+        if (!project) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+        }
+        queryFilter.projectId = filters.projectId;
+    }
+
+    // Lọc theo type và sprint nếu có
+    if (filters.type) queryFilter.type = filters.type;
+    if (filters.sprintId) queryFilter.sprintId = filters.sprintId;
+
+    return await issueDAO.getIssues(queryFilter);
+};
+
 const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const originalIssue = await issueDAO.getIssueById(issueId);
@@ -153,21 +188,52 @@ const updateIssueService = async (issueId, updateData, userId, io) => {
             }
         }
 
-        // Kiểm tra Sprint có active không
-        if (originalIssue.sprintId) {
-            const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
-            if (sprint && sprint.status !== 'active') {
-                throw new ApiError(StatusCodes.FORBIDDEN, `Cannot change issue status because sprint "${sprint.name}" is not active.`);
-            }
-        }
+        const sprint = originalIssue.sprintId
+            ? await sprintDAO.getSprintById(originalIssue.sprintId)
+            : null;
 
-        //Kiểm tra quyền: chỉ leader hoặc assignee mới được đổi status
         const leader = project.members.find(m => m.role === 'leader');
         const isLeader = leader && leader.accountId._id.toString() === userId.toString();
         const isAssignee = originalIssue.assigneeId && originalIssue.assigneeId._id.toString() === userId.toString();
 
-        if (!isLeader && !isAssignee) {
-            throw new ApiError(StatusCodes.FORBIDDEN, "Only the project leader or the assignee can change the issue status.");
+        if (sprint?.status === 'completed') {
+            const isParentIssue = !originalIssue.parentId;
+            const isReopenFromDone = originalIssue.status === 'Done' && updateData.status !== 'Done';
+
+            if (!isParentIssue) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Sub-tasks cannot be changed when the sprint is completed."
+                );
+            }
+
+            if (!isReopenFromDone) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only issues in Done can be moved to another status after the sprint is completed."
+                );
+            }
+
+            if (!isLeader && !isAssignee) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only the project leader or the assignee can reopen a done issue."
+                );
+            }
+        } else {
+            if (sprint && sprint.status !== 'active') {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    `Cannot change issue status because sprint "${sprint.name}" is not active.`
+                );
+            }
+
+            if (!isLeader && !isAssignee) {
+                throw new ApiError(
+                    StatusCodes.FORBIDDEN,
+                    "Only the project leader or the assignee can change the issue status."
+                );
+            }
         }
     }
 
@@ -210,8 +276,40 @@ const updateIssueService = async (issueId, updateData, userId, io) => {
 
     const updatedIssue = await issueDAO.updateIssue(issueId, updateData);
 
+    if (
+        originalIssue.sprintId &&
+        !originalIssue.parentId &&
+        updateData.status !== originalIssue.status
+    ) {
+        const sprint = await sprintDAO.getSprintById(originalIssue.sprintId);
+
+        if (sprint && sprint.status === 'completed' && originalIssue.status === 'Done' && updateData.status !== 'Done') {
+            const backlogSprint = await sprintDAO.findSprintByName(originalIssue.projectId, 'Backlog');
+            if (!backlogSprint) {
+                throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find Backlog sprint.");
+            }
+
+            await issueDAO.updateManyIssues(
+                {
+                    $or: [
+                        { _id: issueId },
+                        { parentId: issueId }
+                    ]
+                },
+                { $set: { sprintId: backlogSprint._id } }
+            );
+        }
+    }
+    // Cập nhật toàn bộ các subtask sang sprintId mới nếu issue này là task cha và có thay đổi sprintId
+    if (!originalIssue.parentId && updateData.hasOwnProperty('sprintId') && String(originalIssue.sprintId || '') !== String(updateData.sprintId || '')) {
+        await issueDAO.updateManyIssues(
+            { parentId: issueId },
+            { sprintId: updateData.sprintId }
+        );
+    }
+
     //Sau khi cập nhật thành công, tạo các bản ghi lịch sử
-    if (changes.length > 0 && !originalIssue.parentId) { // Chỉ tạo lịch sử cho issue cha
+    if (changes.length > 0) {
         // Mapping từ tên trường trong DB sang tên hiển thị thân thiện
         const fieldDisplayNames = {
             sprintId: 'Sprint',
@@ -296,6 +394,7 @@ const createSubtaskService = async (issueData, creatorId) => {
     const subtaskData = {
         ...issueData,
         projectId: parentIssue.projectId,
+        sprintId: parentIssue.sprintId,
         type: "Sub-task",
         title,
     };
@@ -381,6 +480,8 @@ module.exports = {
     createIssueService,
     getIssuesBySprintService,
     getIssuesByProjectService,
+    getMyIssuesByProjectService,
+    getMyIssuesService,
     updateIssueService,
     deleteIssueService,
     createSubtaskService,

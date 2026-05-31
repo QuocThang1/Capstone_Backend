@@ -26,7 +26,7 @@ class ProjectDAO {
 
     async getProjectById(projectId) {
         return await Project.findById(projectId)
-            .populate('members.accountId', 'username fullName email')
+            .populate('members.accountId', 'username fullName email dob phone gender skills')
             .populate('activeWorkflowId');
     }
 
@@ -57,7 +57,7 @@ class ProjectDAO {
     async getProjectsByMember(accountId) {
         return await Project.find({
             'members.accountId': accountId
-        }).populate('members.accountId', 'username fullName email');
+        }).populate('members.accountId', 'username fullName email phone dob gender skills');
     }
 
     async isMemberOfProject(projectId, accountId) {
@@ -80,6 +80,14 @@ class ProjectDAO {
         return await Project.findByIdAndUpdate(
             projectId,
             { $push: { members: newMember } },
+            { new: true }
+        ).populate('members.accountId', 'username fullName email');
+    }
+
+    async removeMember(projectId, accountId) {
+        return await Project.findByIdAndUpdate(
+            projectId,
+            { $pull: { members: { accountId: accountId } } },
             { new: true }
         ).populate('members.accountId', 'username fullName email');
     }

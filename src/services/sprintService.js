@@ -183,36 +183,52 @@ const completeSprintService = async (sprintId, userId) => {
     }
 
     const allSprintIssues = await issueDAO.getIssues({ sprintId });
-    const sprintIssueIds = allSprintIssues.map(issue => issue._id);
 
-    if (sprintIssueIds.length > 0) {
+    //  Lọc ra các task CHA mà đã có trạng thái "Done"
+    const doneParentIssues = allSprintIssues.filter(issue => !issue.parentId && issue.resolution === 'Done');
+    const doneParentIds = doneParentIssues.map(issue => issue._id);
+
+    // Chỉ chặn lỗi nếu các Task Cha đã Done mà subtask bên trong lại chưa Done
+    if (doneParentIds.length > 0) {
         const unresolvedSubtasks = await issueDAO.getIssues({
-            parentId: { $in: sprintIssueIds },
+            parentId: { $in: doneParentIds },
             resolution: { $ne: 'Done' }
         });
 
         if (unresolvedSubtasks.length > 0) {
             throw new ApiError(
                 StatusCodes.BAD_REQUEST,
-                `Cannot complete sprint. There are ${unresolvedSubtasks.length} unresolved sub-task(s) left. Please complete them first.`
+                `Cannot complete sprint. There are ${unresolvedSubtasks.length} unresolved sub-task(s) left in completed tasks. Please complete them first.`
             );
         }
     }
 
-    // Tìm các issue chưa hoàn thành
+    // Tìm các issue chưa hoàn thành (Cả cha lẫn subtask lẻ)
     const unresolvedIssues = await issueDAO.getUnresolvedIssuesBySprint(sprintId);
 
     if (unresolvedIssues.length > 0) {
-        // Tìm sprint 'Backlog'
         const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, 'Backlog');
         if (!backlogSprint) {
             throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find the Backlog sprint for this project.");
         }
 
-        // Chuyển các issue chưa hoàn thành về Backlog
+        // Lấy Id của tất cả issue (chưa hoàn thành) để chuyển đi
         const issueIdsToMove = unresolvedIssues.map(issue => issue._id);
+
+        // Lấy Id của riêng các issue CHA chưa hoàn thành
+        const unresolvedParentIds = unresolvedIssues
+            .filter(issue => !issue.parentId)
+            .map(issue => issue._id);
+
+        // Cập nhật SprintId về Backlog cho Issue chưa xong VÀ toàn bộ các subtask của nó
         await issueDAO.updateManyIssues(
-            { _id: { $in: issueIdsToMove } },
+            {
+                $or: [
+                    { _id: { $in: issueIdsToMove } },
+                    { parentId: { $in: unresolvedParentIds } }
+                ],
+                sprintId: sprintId
+            },
             { $set: { sprintId: backlogSprint._id } }
         );
     }
