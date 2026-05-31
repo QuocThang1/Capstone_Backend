@@ -2,9 +2,14 @@ const accountDAO = require("../DAO/accountDAO");
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const { getOrCreateSystemSettings } = require("./adminSettingsService");
 
 const handleGoogleAuth = async (googleProfile) => {
     try {
+        const settings = await getOrCreateSystemSettings();
+        if (!(settings.allowThirdPartyLogin ?? settings.allowGoogleLogin)) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Third-party login is currently disabled");
+        }
         const { id, email, name, picture } = googleProfile;
 
         // Check if user exists by googleId
@@ -15,6 +20,9 @@ const handleGoogleAuth = async (googleProfile) => {
             user = await accountDAO.findByEmail(email);
             
             if (!user) {
+                if (!settings.allowPublicSignups) {
+                    throw new ApiError(StatusCodes.FORBIDDEN, "Public signups are currently disabled");
+                }
                 // Create new user
                 const userData = {
                     googleId: id,
@@ -53,12 +61,18 @@ const handleGoogleAuth = async (googleProfile) => {
         };
 
         const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN,
+            expiresIn: `${settings.sessionTimeoutMinutes}m`,
         });
+
+        // Return full user object with all fields (excluding password)
+        const userResponse = user.toObject ? user.toObject() : { ...user };
+        if (userResponse.password) {
+            delete userResponse.password;
+        }
 
         return {
             access_token,
-            user: payload,
+            user: userResponse,
         };
     } catch (error) {
         throw error;
@@ -67,6 +81,10 @@ const handleGoogleAuth = async (googleProfile) => {
 
 const handleGitHubAuth = async (githubProfile) => {
     try {
+        const settings = await getOrCreateSystemSettings();
+        if (!(settings.allowThirdPartyLogin ?? settings.allowGoogleLogin)) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Third-party login is currently disabled");
+        }
         const { id, name, email, avatar_url } = githubProfile;
 
         // Check if user exists by githubId
@@ -79,6 +97,9 @@ const handleGitHubAuth = async (githubProfile) => {
             }
             
             if (!user) {
+                if (!settings.allowPublicSignups) {
+                    throw new ApiError(StatusCodes.FORBIDDEN, "Public signups are currently disabled");
+                }
                 // Create new user
                 const userData = {
                     githubId: id.toString(),
@@ -117,12 +138,18 @@ const handleGitHubAuth = async (githubProfile) => {
         };
 
         const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN,
+            expiresIn: `${settings.sessionTimeoutMinutes}m`,
         });
+
+        // Return full user object with all fields (excluding password)
+        const userResponse = user.toObject ? user.toObject() : { ...user };
+        if (userResponse.password) {
+            delete userResponse.password;
+        }
 
         return {
             access_token,
-            user: payload,
+            user: userResponse,
         };
     } catch (error) {
         throw error;

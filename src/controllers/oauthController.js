@@ -1,6 +1,15 @@
 const axios = require('axios');
 const { handleGoogleAuth, handleGitHubAuth } = require("../services/oauthService");
 const { StatusCodes } = require("http-status-codes");
+const { createAuditLog } = require("../services/adminAuditLogService");
+
+const writeLoginAuditLog = (req, user, provider) => createAuditLog(req, {
+    actorId: user?._id,
+    actor: user?.fullName || user?.email || user?.username || "User",
+    action: "User logged in",
+    target: user?.email || user?.username || "User account",
+    details: `Logged in with ${provider}.`,
+}).catch((error) => console.error("Unable to write audit log:", error.message));
 
 const handleGoogleCallback = async (req, res, next) => {
     try {
@@ -49,6 +58,7 @@ const handleGoogleCallback = async (req, res, next) => {
         };
 
         const data = await handleGoogleAuth(googleProfile);
+        await writeLoginAuditLog(req, data.user, "Google");
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -127,6 +137,7 @@ const handleGitHubCallback = async (req, res, next) => {
         };
 
         const data = await handleGitHubAuth(githubProfile);
+        await writeLoginAuditLog(req, data.user, "GitHub");
 
         return res.status(StatusCodes.OK).json({
             EC: 0,

@@ -36,7 +36,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: updateData },
-            { new: true }
+            { returnDocument: 'after' }
         ).select('-password');
     }
 
@@ -44,7 +44,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: { password: hashedPassword } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -52,7 +52,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         )
             .select('-password');
     }
@@ -61,7 +61,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             accountId,
             { $addToSet: { starredProjects: projectId } }, // $addToSet để tránh trùng lặp
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -69,7 +69,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             accountId,
             { $pull: { starredProjects: projectId } }, // $pull để xóa
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 }

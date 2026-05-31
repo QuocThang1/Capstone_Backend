@@ -1,5 +1,5 @@
 const path = require('path');
-const envPath = path.resolve(__dirname, '.env');
+const envPath = path.resolve(__dirname, '../.env');
 require('dotenv').config({ path: envPath });
 // Diagnostic: show which .env was loaded and whether critical vars exist
 console.log(`Loaded env from: ${envPath}`);
@@ -26,12 +26,17 @@ const workflowRouter = require('./routes/workflowRoutes')
 const notificationRouter = require('./routes/notificationRoutes')
 const bottleneckRouter = require('./routes/bottleneckRoutes');
 const intelligenceDetectRouter = require('./routes/intelligenceDetectRoutes');
+const adminRouter = require('./routes/adminRoutes');
+const systemSettingsRouter = require('./routes/systemSettingsRoutes');
+const maintenanceMode = require('./middleware/maintenanceMode');
 const { startCronJobs } = require('./services/cronService');
 
 const connection = require("./config/database");
 
 const app = express()
 const server = http.createServer(app)
+
+app.set('trust proxy', true);
 
 const port = process.env.PORT || 8080
 const host = process.env.HOST || 'localhost'
@@ -51,6 +56,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use('/api/admin', adminRouter);
+app.use('/v1/api/admin', adminRouter);
+app.use('/v1/api/system-settings', systemSettingsRouter);
+app.use(maintenanceMode);
 app.use('/v1/api/account', accountRouter);
 app.use('/v1/api/auth', oauthRouter);
 app.use('/v1/api/users', userRouter);

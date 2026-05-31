@@ -4,10 +4,37 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const { getOrCreateSystemSettings } = require("./adminSettingsService");
+const OTP = require("../models/otp");
 
 const saltRounds = 10;
+const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+const validatePasswordStrength = (password, settings) => {
+    if (settings.requireStrongPassword && !strongPasswordPattern.test(password || "")) {
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "Password must contain at least 8 characters, including uppercase, lowercase, and a number"
+        );
+    }
+};
 
 const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender, skills }) => {
+    const settings = await getOrCreateSystemSettings();
+    if (!settings.allowPublicSignups) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Public signups are currently disabled");
+    }
+    if (!settings.allowPasswordLogin) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Password registration is currently disabled");
+    }
+    if (settings.requireEmailVerification) {
+        const verifiedOtp = await OTP.findOne({ email, verified: true, expiresAt: { $gt: new Date() } });
+        if (!verifiedOtp) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Email verification is required before registration");
+        }
+    }
+    validatePasswordStrength(password, settings);
+
     // If username is not provided, generate it from email (first part before @)
     const finalUsername = username || email.split('@')[0];
 
@@ -37,10 +64,18 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
     };
 
     const newUser = await accountDAO.createAccount(newUserData);
+    if (settings.requireEmailVerification) {
+        await OTP.deleteMany({ email });
+    }
     return newUser;
 };
 
 const handleLoginService = async (usernameOrEmail, password) => {
+    const settings = await getOrCreateSystemSettings();
+    if (!settings.allowPasswordLogin) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Password login is currently disabled");
+    }
+
     // Support both username and email login
     let user = await accountDAO.findByUsername(usernameOrEmail);
 
@@ -77,12 +112,18 @@ const handleLoginService = async (usernameOrEmail, password) => {
     };
 
     const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
+        expiresIn: `${settings.sessionTimeoutMinutes}m`,
     });
+
+    // Return full user object with all fields (excluding password)
+    const userResponse = user.toObject ? user.toObject() : { ...user };
+    if (userResponse.password) {
+        delete userResponse.password;
+    }
 
     return {
         access_token,
-        user: payload,
+        user: userResponse,
     };
 };
 
@@ -165,6 +206,8 @@ const getStarredProjectsService = async (accountId) => {
 };
 
 const forgotPasswordService = async (email, newPassword) => {
+    const settings = await getOrCreateSystemSettings();
+    validatePasswordStrength(newPassword, settings);
     const user = await accountDAO.findByEmail(email);
     if (!user) {
         throw new ApiError(StatusCodes.NOT_FOUND, "User not found");
@@ -180,6 +223,8 @@ const forgotPasswordService = async (email, newPassword) => {
 };
 
 const changePasswordService = async (userId, oldPassword, newPassword) => {
+    const settings = await getOrCreateSystemSettings();
+    validatePasswordStrength(newPassword, settings);
     const user = await accountDAO.findOne({ _id: userId });
     if (!user) {
         throw new ApiError(StatusCodes.NOT_FOUND, "User not found");

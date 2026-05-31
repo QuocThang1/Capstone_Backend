@@ -10,8 +10,20 @@ const {
 } = require("../services/accountService");
 const { StatusCodes } = require("http-status-codes");
 const OTP = require("../models/otp");
-const transporter = require("../utils/mailer");
+const { sendSystemMail } = require("../utils/mailer");
+const { EMAIL_TEMPLATE_KEYS } = require("../utils/emailTemplates");
+const { renderEmailTemplate } = require("../services/emailTemplateService");
 const ApiError = require("../utils/ApiError");
+const { getOrCreateSystemSettings } = require("../services/adminSettingsService");
+const { createAuditLog } = require("../services/adminAuditLogService");
+
+const writeLoginAuditLog = (req, user) => createAuditLog(req, {
+    actorId: user?._id,
+    actor: user?.fullName || user?.email || user?.username || "User",
+    action: "User logged in",
+    target: user?.email || user?.username || "User account",
+    details: "Logged in with password.",
+}).catch((error) => console.error("Unable to write audit log:", error.message));
 
 const handleSignUp = async (req, res, next) => {
     try {
@@ -46,6 +58,7 @@ const handleLogin = async (req, res, next) => {
         const loginIdentifier = usernameOrEmail || username;
 
         const data = await handleLoginService(loginIdentifier, password);
+        await writeLoginAuditLog(req, data.user);
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -102,12 +115,16 @@ const updateProfile = async (req, res, next) => {
 const sendOTP = async (req, res, next) => {
     try {
         const { email } = req.body;
+        const settings = await getOrCreateSystemSettings();
 
         if (!email) {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 EC: 1,
                 EM: "Email is required"
             });
+        }
+        if (!settings.enableEmailNotifications || !settings.enableOtpEmail) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "OTP email is currently disabled");
         }
 
         // Generate 6-digit OTP
@@ -123,46 +140,14 @@ const sendOTP = async (req, res, next) => {
         const newOtp = new OTP({ email, otp, expiresAt });
         await newOtp.save();
 
-        // Send email
-        const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: 'Arial', sans-serif; background-color: #f8f9fa; padding: 20px; margin: 0; }
-    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-    .header { text-align: center; color: #1a202c; margin-bottom: 30px; }
-    .header h1 { font-size: 28px; font-weight: 700; margin: 0; color: #2d3748; }
-    .header p { font-size: 16px; color: #718096; margin: 10px 0 0 0; }
-    .code { font-size: 32px; font-weight: 800; color: #3182ce; text-align: center; margin: 30px 0; letter-spacing: 4px; background: #edf2f7; padding: 20px; border-radius: 8px; }
-    .footer { text-align: center; color: #a0aec0; font-size: 14px; margin-top: 30px; }
-    .footer p { margin: 5px 0; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Welcome to TASKA</h1>
-      <p>Your verification code is:</p>
-    </div>
-    <div class="code">${otp}</div>
-    <div class="footer">
-      <p>This code will expire in 5 minutes.</p>
-      <p>If you didn't request this, please ignore this email.</p>
-    </div>
-  </div>
-</body>
-</html>
-        `;
-
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
+        const otpEmail = await renderEmailTemplate(EMAIL_TEMPLATE_KEYS.OTP_VERIFICATION, {
+            otp,
+            expiresInMinutes: 10,
+        });
+        await sendSystemMail({
             to: email,
-            subject: 'TASKA - Your Verification Code',
-            html: html
-        };
-
-        await transporter.sendMail(mailOptions);
+            ...otpEmail,
+        });
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -206,8 +191,8 @@ const verifyOTP = async (req, res, next) => {
             });
         }
 
-        // Delete the OTP after successful verification
-        await OTP.deleteOne({ _id: otpDoc._id });
+        otpDoc.verified = true;
+        await otpDoc.save();
 
         return res.status(StatusCodes.OK).json({
             EC: 0,
@@ -257,6 +242,10 @@ const getStarredProjects = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
     try {
         const { email, otp, newPassword } = req.body;
+        const settings = await getOrCreateSystemSettings();
+        if (!settings.enablePasswordResetEmail) {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Password reset email is currently disabled");
+        }
 
         if (!email || !otp || !newPassword) {
             return res.status(StatusCodes.BAD_REQUEST).json({

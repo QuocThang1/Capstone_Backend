@@ -19,7 +19,7 @@ class WorkflowDAO {
     }
 
     async updateWorkflow(workflowId, updateData) {
-        return await Workflow.findByIdAndUpdate(workflowId, updateData, { new: true });
+        return await Workflow.findByIdAndUpdate(workflowId, updateData, { returnDocument: 'after' });
     }
 
     async deleteWorkflow(workflowId) {

@@ -26,7 +26,7 @@ class IssueDAO {
         return await Issue.findByIdAndUpdate(
             issueId,
             { $set: updateData },
-            { new: true }
+            { returnDocument: 'after' }
         )
             .populate('reporterId', 'username fullName email')
             .populate('assigneeId', 'username fullName email')

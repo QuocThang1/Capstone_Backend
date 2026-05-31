@@ -43,7 +43,7 @@ class SprintDAO {
         return await Sprint.findByIdAndUpdate(
             sprintId,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
     }
 

@@ -4,7 +4,7 @@ const accountSchema = new mongoose.Schema(
     {
         role: {
             type: String,
-            enum: ["admin", "user"],
+            enum: ["admin", "leader", "user"],
             default: "user",
         },
         username: {
@@ -47,6 +47,11 @@ const accountSchema = new mongoose.Schema(
             type: String,
             required: false,
             maxlength: 500,
+        },
+        major: {
+            type: String,
+            required: false,
+            trim: true,
         },
         googleId: {
             type: String,
