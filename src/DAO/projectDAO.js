@@ -46,7 +46,7 @@ class ProjectDAO {
         return await Project.findByIdAndUpdate(
             projectId,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         ).populate('members.accountId', 'username fullName email');
     }
 
@@ -80,7 +80,7 @@ class ProjectDAO {
         return await Project.findByIdAndUpdate(
             projectId,
             { $push: { members: newMember } },
-            { new: true }
+            { returnDocument: 'after' }
         ).populate('members.accountId', 'username fullName email');
     }
 
@@ -96,7 +96,7 @@ class ProjectDAO {
         return await Project.findByIdAndUpdate(
             projectId,
             { $inc: { issueSequence: 1 } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 }

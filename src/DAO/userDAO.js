@@ -32,7 +32,7 @@ class UserDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         ).select('-password');
     }
 
@@ -40,7 +40,7 @@ class UserDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: { active } },
-            { new: true }
+            { returnDocument: 'after' }
         ).select('-password');
     }
 

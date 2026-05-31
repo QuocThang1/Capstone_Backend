@@ -6,6 +6,10 @@ class AccountDAO {
         return await newAccount.save();
     }
 
+    async findOne(query) {
+        return await Account.findOne(query);
+    }
+
     async findByUsername(username) {
         return await Account.findOne({ username });
     }
@@ -28,11 +32,19 @@ class AccountDAO {
             .select("_id fullName username email skills role");
     }
 
+    async updateAccount(userId, updateData) {
+        return await Account.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { returnDocument: 'after' }
+        ).select('-password');
+    }
+
     async updatePassword(userId, hashedPassword) {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: { password: hashedPassword } },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -40,7 +52,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             userId,
             { $set: updateData },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         )
             .select('-password');
     }
@@ -49,7 +61,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             accountId,
             { $addToSet: { starredProjects: projectId } }, // $addToSet để tránh trùng lặp
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -57,7 +69,7 @@ class AccountDAO {
         return await Account.findByIdAndUpdate(
             accountId,
             { $pull: { starredProjects: projectId } }, // $pull để xóa
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 }
