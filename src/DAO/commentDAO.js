@@ -26,7 +26,7 @@ class CommentDAO {
         return await Comment.findByIdAndUpdate(
             commentId,
             { $set: { content } },
-            { new: true }
+            { returnDocument: 'after' }
         ).populate('authorId', 'username fullName email');
     }
 

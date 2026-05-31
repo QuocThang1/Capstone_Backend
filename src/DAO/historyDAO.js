@@ -43,6 +43,12 @@ class HistoryDAO {
             .sort({ createdAt: -1 });
     }
 
+    async getHistoriesByIssueIds(issueIds) {
+        return await History.find({ issueId: { $in: issueIds } })
+            .populate('authorId', 'username fullName email')
+            .sort({ createdAt: -1 });
+    }
+
     async deleteManyHistories(filter) {
         return await History.deleteMany(filter);
     }

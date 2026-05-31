@@ -70,7 +70,7 @@ class BottleneckDAO {
         return await Bottleneck.findByIdAndUpdate(
             id,
             { $set: updateData },
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 }

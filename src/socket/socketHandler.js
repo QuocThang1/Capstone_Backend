@@ -55,6 +55,14 @@ const initializeSocket = (io) => {
             // console.log(`Socket ${socket.id} left user room: user_${userId}`);
         });
 
+        socket.on('join_admin_audit_logs', () => {
+            socket.join('admin_audit_logs');
+        });
+
+        socket.on('leave_admin_audit_logs', () => {
+            socket.leave('admin_audit_logs');
+        });
+
         socket.on('disconnect', () => {
             console.log(`User disconnected: ${socket.id}`);
         });
