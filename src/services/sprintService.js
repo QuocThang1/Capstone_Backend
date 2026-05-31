@@ -241,11 +241,29 @@ const completeSprintService = async (sprintId, userId) => {
     };
 };
 
+const getOccupiedSprintRangesService = async (projectId, userId) => {
+    const project = await projectDAO.checkMemberExists(projectId, userId);
+    if (!project) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+
+    const sprints = await sprintDAO.getSprintsByProjectId(projectId);
+
+    return sprints
+        .filter(sprint => sprint.startDate && sprint.endDate)
+        .map(sprint => ({
+            startDate: sprint.startDate,
+            endDate: sprint.endDate
+        }));
+};
+
+
 module.exports = {
     createSprintService,
     getSprintsByProjectService,
     updateSprintService,
     deleteSprintService,
     startSprintService,
-    completeSprintService
+    completeSprintService,
+    getOccupiedSprintRangesService
 };
