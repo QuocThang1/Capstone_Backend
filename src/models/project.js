@@ -62,6 +62,11 @@ const projectSchema = new mongoose.Schema(
         isNotificationActive: { type: Boolean, default: true },
         isBottleneckActive: { type: Boolean, default: true },
 
+        timezone: {
+            type: String,
+            default: 'UTC'
+        },
+
         issueSequence: {
             type: Number,
             default: 0,
