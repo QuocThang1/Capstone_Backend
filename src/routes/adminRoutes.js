@@ -19,6 +19,29 @@ const {
     getAllAuditLogs,
     getAuditLogById,
 } = require("../controllers/adminAuditLogController");
+const {
+    getDataSecurity,
+    getAllDataRequests,
+    getDataRequestById,
+    approveDataRequest,
+    rejectDataRequest,
+} = require("../controllers/adminSecurityController");
+const {
+    createGlobalNotification,
+    getAllGlobalNotifications,
+    deleteGlobalNotification,
+    getAdminMessageTemplates,
+} = require("../controllers/adminNotificationController");
+const { getSystemHealth } = require("../controllers/adminSystemHealthController");
+const {
+    assignSupportTicket,
+    closeSupportTicket,
+    createSupportTicket,
+    getAllSupportTickets,
+    getSupportTicketById,
+    runSupportDiagnostic,
+    updateSupportTicket,
+} = require("../controllers/adminSupportController");
 
 const routerAPI = express.Router();
 
@@ -39,5 +62,24 @@ routerAPI.put("/system-settings", updateSystemSettings);
 routerAPI.post("/system-settings/test-email", sendTestEmail);
 routerAPI.get("/audit-logs", getAllAuditLogs);
 routerAPI.get("/audit-logs/:logId", getAuditLogById);
+routerAPI.get("/security", getDataSecurity);
+routerAPI.get("/data-requests", getAllDataRequests);
+routerAPI.get("/data-requests/:requestId", getDataRequestById);
+routerAPI.patch("/data-requests/:requestId/approve", approveDataRequest);
+routerAPI.patch("/data-requests/:requestId/reject", rejectDataRequest);
+routerAPI.get("/message-templates", getAdminMessageTemplates);
+routerAPI.post("/notifications/global", createGlobalNotification);
+routerAPI.get("/notifications/global", getAllGlobalNotifications);
+routerAPI.delete("/notifications/global/:notifId", deleteGlobalNotification);
+routerAPI.get("/system/health", getSystemHealth);
+routerAPI.post("/system/health-check", getSystemHealth);
+routerAPI.get("/system/metrics", getSystemHealth);
+routerAPI.get("/support-tickets", getAllSupportTickets);
+routerAPI.post("/support-tickets", createSupportTicket);
+routerAPI.get("/support-tickets/:ticketId", getSupportTicketById);
+routerAPI.put("/support-tickets/:ticketId", updateSupportTicket);
+routerAPI.patch("/support-tickets/:ticketId/close", closeSupportTicket);
+routerAPI.patch("/support-tickets/:ticketId/assign", assignSupportTicket);
+routerAPI.post("/support/diagnostics/:diagnostic", runSupportDiagnostic);
 
 module.exports = routerAPI;

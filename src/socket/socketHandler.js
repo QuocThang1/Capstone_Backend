@@ -1,6 +1,16 @@
+const {
+    SYSTEM_HEALTH_ROOM,
+    publishSystemHealth,
+} = require('../services/systemHealthMonitorService');
+const {
+    addFrontendClient,
+    removeFrontendClient,
+} = require('../services/runtimeUsageService');
+
 const initializeSocket = (io) => {
     io.on('connection', (socket) => {
         console.log(`A user connected: ${socket.id}`);
+        addFrontendClient(socket.id);
 
         // Sự kiện khi người dùng tham gia vào một phòng issue
         socket.on('join_issue_room', (issueId) => {
@@ -63,7 +73,19 @@ const initializeSocket = (io) => {
             socket.leave('admin_audit_logs');
         });
 
+        socket.on('join_admin_system_health', () => {
+            socket.join(SYSTEM_HEALTH_ROOM);
+            publishSystemHealth(io, { force: true }).catch((error) => {
+                console.error('[System Health] Socket snapshot failed:', error.message);
+            });
+        });
+
+        socket.on('leave_admin_system_health', () => {
+            socket.leave(SYSTEM_HEALTH_ROOM);
+        });
+
         socket.on('disconnect', () => {
+            removeFrontendClient(socket.id);
             console.log(`User disconnected: ${socket.id}`);
         });
     });

@@ -30,6 +30,8 @@ const adminRouter = require('./routes/adminRoutes');
 const systemSettingsRouter = require('./routes/systemSettingsRoutes');
 const maintenanceMode = require('./middleware/maintenanceMode');
 const { startCronJobs } = require('./services/cronService');
+const { startSystemHealthMonitor } = require('./services/systemHealthMonitorService');
+const { trackRuntimeUsage } = require('./services/runtimeUsageService');
 
 const connection = require("./config/database");
 
@@ -55,6 +57,7 @@ initializeSocket(io);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(trackRuntimeUsage);
 
 app.use('/api/admin', adminRouter);
 app.use('/v1/api/admin', adminRouter);
@@ -80,6 +83,7 @@ app.use(errorHandlingMiddleware);
         await connection();
 
         startCronJobs(io);
+        startSystemHealthMonitor(io);
 
         server.listen(port, host, () => {
             console.log(`Backend listening at http://${host}:${port}`)
