@@ -5,6 +5,17 @@ const { checkWaitTimeBottleneck } = require('./bottleneckEngine');
 
 const activeNotifJobs = {};
 const activeBottleJobs = {};
+const cronMetadata = {};
+const runningJobs = new Set();
+
+const runTrackedJob = async (jobId, callback) => {
+    runningJobs.add(jobId);
+    try {
+        await callback();
+    } finally {
+        runningJobs.delete(jobId);
+    }
+};
 
 const stopProjectCrons = (projectId) => {
     const id = projectId.toString();
@@ -16,6 +27,7 @@ const stopProjectCrons = (projectId) => {
         activeBottleJobs[id].stop();
         delete activeBottleJobs[id];
     }
+    delete cronMetadata[id];
 };
 
 const startProjectCrons = (project, io) => {
@@ -24,7 +36,7 @@ const startProjectCrons = (project, io) => {
 
     // Kích hoạt quét thời hạn (Notification)
     if (project.isNotificationActive && project.notificationCron && cron.validate(project.notificationCron)) {
-        activeNotifJobs[id] = cron.schedule(project.notificationCron, async () => {
+        activeNotifJobs[id] = cron.schedule(project.notificationCron, () => runTrackedJob(`notification-${id}`, async () => {
             console.log(`[Cron: Notification] Running for project: ${id}`);
             await generateDueIssueNotifications(io, id);
         }, {
@@ -35,7 +47,7 @@ const startProjectCrons = (project, io) => {
 
     // Kích hoạt quét ùn tắc (Bottleneck)
     if (project.isBottleneckActive && project.bottleneckCron && cron.validate(project.bottleneckCron)) {
-        activeBottleJobs[id] = cron.schedule(project.bottleneckCron, async () => {
+        activeBottleJobs[id] = cron.schedule(project.bottleneckCron, () => runTrackedJob(`bottleneck-${id}`, async () => {
             console.log(`[Cron: Bottleneck] Running for project: ${id}`);
             await checkWaitTimeBottleneck(io, id);
         }, {
@@ -43,6 +55,13 @@ const startProjectCrons = (project, io) => {
         });
         console.log(`[Cron: Bottleneck] Started for project: ${id} [${project.bottleneckCron}] [${project.timezone || 'UTC'}]`);
     }
+
+    cronMetadata[id] = {
+        projectId: id,
+        projectName: project.name,
+        notificationCron: activeNotifJobs[id] ? project.notificationCron : null,
+        bottleneckCron: activeBottleJobs[id] ? project.bottleneckCron : null,
+    };
 };
 
 const initializeAllCronJobs = async (io) => {
@@ -62,4 +81,40 @@ const rescheduleProjectCrons = (project, io) => {
     startProjectCrons(project, io);
 };
 
-module.exports = { startCronJobs: initializeAllCronJobs, rescheduleProjectCrons, stopProjectCrons };
+const getCronJobHealth = () => {
+    const jobs = Object.values(cronMetadata).flatMap((project) => {
+        const projectJobs = [];
+        if (project.notificationCron) {
+            projectJobs.push({
+                id: `notification-${project.projectId}`,
+                name: `Notification Dispatch - ${project.projectName}`,
+                status: "Scheduled",
+                schedule: project.notificationCron,
+            });
+        }
+        if (project.bottleneckCron) {
+            projectJobs.push({
+                id: `bottleneck-${project.projectId}`,
+                name: `Bottleneck Detection - ${project.projectName}`,
+                status: "Scheduled",
+                schedule: project.bottleneckCron,
+            });
+        }
+        return projectJobs;
+    });
+
+    return {
+        notificationJobs: Object.keys(activeNotifJobs).length,
+        bottleneckJobs: Object.keys(activeBottleJobs).length,
+        totalJobs: jobs.length,
+        runningJobs: runningJobs.size,
+        jobs,
+    };
+};
+
+module.exports = {
+    startCronJobs: initializeAllCronJobs,
+    rescheduleProjectCrons,
+    stopProjectCrons,
+    getCronJobHealth,
+};

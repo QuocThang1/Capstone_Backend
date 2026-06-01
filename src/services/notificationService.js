@@ -2,18 +2,29 @@ const notificationDAO = require("../DAO/notificationDAO");
 const issueDAO = require("../DAO/issueDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const GlobalInboxNotification = require("../models/globalInboxNotification");
 
 const getMyNotificationsService = async (userId) => {
-    return await notificationDAO.getNotificationsByUserId(userId);
+    const [issueNotifications, globalNotifications] = await Promise.all([
+        notificationDAO.getNotificationsByUserId(userId),
+        GlobalInboxNotification.find({ recipientId: userId }).sort({ createdAt: -1 }),
+    ]);
+    return [...issueNotifications, ...globalNotifications]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 const deleteNotificationService = async (notificationId, userId) => {
     const notif = await notificationDAO.getNotificationByIdAndUser(notificationId, userId);
-    if (!notif) {
+    if (notif) {
+        await notificationDAO.deleteNotification(notificationId);
+        return { message: "Notification deleted successfully." };
+    }
+
+    const globalNotification = await GlobalInboxNotification.findOneAndDelete({ _id: notificationId, recipientId: userId });
+    if (!globalNotification) {
         throw new ApiError(StatusCodes.NOT_FOUND, "Notification not found or access denied.");
     }
 
-    await notificationDAO.deleteNotification(notificationId);
     return { message: "Notification deleted successfully." };
 };
 

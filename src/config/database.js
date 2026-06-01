@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { trackDatabaseOperation } = require("../services/runtimeUsageService");
 
 const dbState = [
     { value: 0, label: "Disconnected" },
@@ -25,7 +26,9 @@ const connection = async () => {
             socketTimeoutMS: 45000,
             retryWrites: true,
             w: 'majority',
+            monitorCommands: true,
         });
+        mongoose.connection.getClient().on("commandStarted", trackDatabaseOperation);
 
         // Success Log (hide credentials, show host)
         const dbHost = dbUri.split('@')[1] || 'localhost';
