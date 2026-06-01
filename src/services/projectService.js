@@ -144,6 +144,7 @@ const updateProjectService = async (projectId, updateData, userId, userRole) => 
         description: updateData.description,
         boardColumns: updateData.boardColumns,
         issueTypes: updateData.issueTypes,
+        timezone: updateData.timezone
     };
 
     if (updateData.hasOwnProperty('notifHour')) {
