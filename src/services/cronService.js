@@ -39,8 +39,10 @@ const startProjectCrons = (project, io) => {
         activeNotifJobs[id] = cron.schedule(project.notificationCron, () => runTrackedJob(`notification-${id}`, async () => {
             console.log(`[Cron: Notification] Running for project: ${id}`);
             await generateDueIssueNotifications(io, id);
-        }));
-        console.log(`[Cron: Notification] Started for project: ${id} [${project.notificationCron}]`);
+        }, {
+            timezone: project.timezone || 'UTC'
+        });
+        console.log(`[Cron: Notification] Started for project: ${id} [${project.notificationCron}] [${project.timezone || 'UTC'}]`);
     }
 
     // Kích hoạt quét ùn tắc (Bottleneck)
@@ -48,8 +50,10 @@ const startProjectCrons = (project, io) => {
         activeBottleJobs[id] = cron.schedule(project.bottleneckCron, () => runTrackedJob(`bottleneck-${id}`, async () => {
             console.log(`[Cron: Bottleneck] Running for project: ${id}`);
             await checkWaitTimeBottleneck(io, id);
-        }));
-        console.log(`[Cron: Bottleneck] Started for project: ${id} [${project.bottleneckCron}]`);
+        }, {
+            timezone: project.timezone || 'UTC'
+        });
+        console.log(`[Cron: Bottleneck] Started for project: ${id} [${project.bottleneckCron}] [${project.timezone || 'UTC'}]`);
     }
 
     cronMetadata[id] = {
