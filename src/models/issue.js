@@ -10,7 +10,11 @@ const issueSchema = new mongoose.Schema(
         sprintId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Sprint",
-            default: null, // null nghĩa là thẻ đang nằm ở phần Backlog chung
+        },
+        parentId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Issue",
+            default: null,
         },
         issueKey: {
             type: String,
@@ -38,9 +42,32 @@ const issueSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        timeExpect: {
+            type: Number,
+            default: 0,
+        },
+        requiredSkills: [{
+            type: String,
+        }],
+        attachments: [{
+            publicId: { type: String, required: true },
+            url: { type: String, required: true },
+            filename: { type: String, required: true },
+            uploadedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Account",
+                required: true
+            },
+            uploadedAt: { type: Date, default: Date.now }
+        }],
         status: {
             type: String,
             default: "To Do", // Lưu tên cột Kanban
+        },
+        resolution: {
+            type: String,
+            enum: ["Unresolved", "Done"],
+            default: "Unresolved",
         },
         reporterId: {
             type: mongoose.Schema.Types.ObjectId,

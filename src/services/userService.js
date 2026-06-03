@@ -1,9 +1,31 @@
 const userDAO = require("../DAO/userDAO");
+const Organization = require("../models/organization");
 const bcrypt = require("bcrypt");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
 const saltRounds = 10;
+
+const attachOrganizationsToUsers = async (users) => {
+    const userIds = users.map((user) => user._id);
+    const organizations = await Organization.find({ ownerIds: { $in: userIds } })
+        .select("name ownerIds status");
+
+    return users.map((user) => {
+        const userObject = user.toObject ? user.toObject() : user;
+        userObject.organizations = organizations
+            .filter((organization) =>
+                organization.ownerIds.some((ownerId) => ownerId.toString() === user._id.toString())
+            )
+            .map((organization) => ({
+                id: organization._id.toString(),
+                name: organization.name,
+                status: organization.status,
+            }));
+
+        return userObject;
+    });
+};
 
 const getAllUsersService = async (query) => {
     const { page = 1, limit = 10, search, role, gender, active } = query;
@@ -31,6 +53,7 @@ const getAllUsersService = async (query) => {
     }
 
     const result = await userDAO.getAllUsers(filter, parseInt(page), parseInt(limit));
+    result.users = await attachOrganizationsToUsers(result.users);
     return result;
 };
 
@@ -42,7 +65,7 @@ const getUserByIdService = async (userId) => {
     return user;
 };
 
-const createUserService = async ({ username, password, fullName, email, phone, dob, gender, role, active }) => {
+const createUserService = async ({ username, password, fullName, email, phone, dob, gender, role, active, major }) => {
     const existingUsername = await userDAO.findByUsername(username);
     if (existingUsername) {
         throw new ApiError(StatusCodes.CONFLICT, "Username already exists");
@@ -63,6 +86,7 @@ const createUserService = async ({ username, password, fullName, email, phone, d
         phone,
         dob,
         gender,
+        major,
         role: role || "user",
         active: active !== undefined ? active : true,
     };
@@ -77,9 +101,9 @@ const createUserService = async ({ username, password, fullName, email, phone, d
 };
 
 const updateUserService = async (userId, updateData, adminId) => {
-    if (userId === adminId.toString()) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Cannot modify your own account through admin panel");
-    }
+    // Cho phép user update profile của chính mình hoặc admin update user khác
+    // Chỉ prevent admin tự update account của mình thông qua admin panel (nếu cần)
+    // Bỏ comment này nếu muốn enforce: if (userId === adminId.toString()) { throw ... }
 
     const existingUser = await userDAO.getUserById(userId);
     if (!existingUser) {
@@ -102,9 +126,13 @@ const updateUserService = async (userId, updateData, adminId) => {
         }
     }
 
-    // Validate role nếu có
+    // Validate role nếu có (chỉ admin có quyền thay đổi)
+    if (updateData.role && userId !== adminId.toString()) {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only admins can change user roles");
+    }
+
     if (updateData.role) {
-        const validRoles = ['user', 'admin'];
+        const validRoles = ['user', 'leader', 'admin'];
         if (!validRoles.includes(updateData.role)) {
             throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid role");
         }
@@ -149,7 +177,10 @@ const deleteUserService = async (userId, adminId) => {
     }
 
     await userDAO.deleteUser(userId);
-    return { message: "User deleted successfully" };
+    return {
+        message: "User deleted successfully",
+        userName: user.fullName || user.email,
+    };
 };
 
 module.exports = {

@@ -9,7 +9,6 @@ const projectSchema = new mongoose.Schema(
         key: {
             type: String,
             required: true,
-            unique: true,
             uppercase: true, // VD: "HRM"
         },
         description: {
@@ -46,17 +45,35 @@ const projectSchema = new mongoose.Schema(
                 iconUrl: { type: String }
             }
         ],
+
+        activeWorkflowId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Workflow",
+            required: false,
+        },
+        notificationCron: {
+            type: String,
+            default: '0 8 * * *'
+        },
+        bottleneckCron: {
+            type: String,
+            default: '0 * * * *'
+        },
+        isNotificationActive: { type: Boolean, default: true },
+        isBottleneckActive: { type: Boolean, default: true },
+
+        timezone: {
+            type: String,
+            default: 'UTC'
+        },
+
         issueSequence: {
             type: Number,
             default: 0,
         },
-        startDate: {
-            type: Date,
-            required: false,
-        },
-        endDate: {
-            type: Date,
-            required: false, // Ngày dự kiến kết thúc toàn bộ dự án
+        isAiDraft: {
+            type: Boolean,
+            default: false,
         },
     },
     {

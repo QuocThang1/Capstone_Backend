@@ -1,33 +1,89 @@
-require('dotenv').config()
+const path = require('path');
+const envPath = path.resolve(__dirname, '../.env');
+require('dotenv').config({ path: envPath });
+// Diagnostic: show which .env was loaded and whether critical vars exist
+console.log(`Loaded env from: ${envPath}`);
+console.log('MONGO_DB_URL present:', !!process.env.MONGO_DB_URL);
+
 const express = require('express')
 const cors = require('cors')
 const http = require('http')
+
+const { Server } = require('socket.io');
+const initializeSocket = require('./socket/socketHandler');
 
 const errorHandlingMiddleware = require('./middleware/errorHandling')
 
 const accountRouter = require('./routes/accountRoutes')
 const userRouter = require('./routes/userRoutes')
+const projectRouter = require('./routes/projectRoutes')
+const sprintRouter = require('./routes/sprintRoutes')
+const issueRouter = require('./routes/issueRoutes')
+const commentRouter = require('./routes/commentRoutes')
+const historyRouter = require('./routes/historyRoutes')
+const oauthRouter = require('./routes/oauthRoutes')
+const workflowRouter = require('./routes/workflowRoutes')
+const notificationRouter = require('./routes/notificationRoutes')
+const bottleneckRouter = require('./routes/bottleneckRoutes');
+const intelligenceDetectRouter = require('./routes/intelligenceDetectRoutes');
+const adminRouter = require('./routes/adminRoutes');
+const systemSettingsRouter = require('./routes/systemSettingsRoutes');
+const maintenanceMode = require('./middleware/maintenanceMode');
+const { startCronJobs } = require('./services/cronService');
+const { startSystemHealthMonitor } = require('./services/systemHealthMonitorService');
+const { trackRuntimeUsage } = require('./services/runtimeUsageService');
 
 const connection = require("./config/database");
 
 const app = express()
 const server = http.createServer(app)
 
+app.set('trust proxy', true);
+
 const port = process.env.PORT || 8080
 const host = process.env.HOST || 'localhost'
+
+const io = new Server(server, {
+    cors: {
+        origin: process.env.CLIENT_URL,
+        methods: ["GET", "POST"]
+    }
+});
+
+app.set('io', io);
+
+initializeSocket(io);
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(trackRuntimeUsage);
 
+app.use('/api/admin', adminRouter);
+app.use('/v1/api/admin', adminRouter);
+app.use('/v1/api/system-settings', systemSettingsRouter);
+app.use(maintenanceMode);
 app.use('/v1/api/account', accountRouter);
+app.use('/v1/api/auth', oauthRouter);
 app.use('/v1/api/users', userRouter);
-
+app.use('/v1/api/projects', projectRouter);
+app.use('/v1/api/sprints', sprintRouter);
+app.use('/v1/api/issues', issueRouter);
+app.use('/v1/api/comments', commentRouter);
+app.use('/v1/api/history', historyRouter);
+app.use('/v1/api/workflows', workflowRouter);
+app.use('/v1/api/notifications', notificationRouter);
+app.use('/v1/api/bottlenecks', bottleneckRouter);
+app.use('/v1/api/intelligence_detect', intelligenceDetectRouter);
+app.use('/api/intelligence_detect', intelligenceDetectRouter);
 app.use(errorHandlingMiddleware);
 
 (async () => {
     try {
         await connection();
+
+        startCronJobs(io);
+        startSystemHealthMonitor(io);
 
         server.listen(port, host, () => {
             console.log(`Backend listening at http://${host}:${port}`)

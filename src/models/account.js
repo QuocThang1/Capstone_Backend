@@ -4,13 +4,14 @@ const accountSchema = new mongoose.Schema(
     {
         role: {
             type: String,
-            enum: ["admin", "user"],
+            enum: ["admin", "leader", "user"],
             default: "user",
         },
         username: {
             type: String,
-            required: true,
+            required: false,
             unique: true,
+            sparse: true,
         },
         password: {
             type: String,
@@ -23,6 +24,7 @@ const accountSchema = new mongoose.Schema(
         email: {
             type: String,
             required: true,
+            unique: true,
         },
         phone: {
             type: String,
@@ -37,10 +39,48 @@ const accountSchema = new mongoose.Schema(
             enum: ["male", "female", "other"],
             required: false,
         },
+        avatar: {
+            type: String,
+            required: false,
+        },
+        bio: {
+            type: String,
+            required: false,
+            maxlength: 500,
+        },
+        major: {
+            type: String,
+            required: false,
+            trim: true,
+        },
+        googleId: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true,
+        },
+        githubId: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true,
+        },
+        authProvider: {
+            type: String,
+            enum: ["local", "google", "github"],
+            default: "local",
+        },
         active: {
             type: Boolean,
             default: true,
         },
+        starredProjects: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Project"
+        }],
+        skills: [{
+            type: String,
+        }]
     },
     {
         timestamps: true,
