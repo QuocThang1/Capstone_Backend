@@ -13,8 +13,10 @@ const {
     getBoardColumnsService,
     getIssueTypesService,
     deleteBoardColumnService,
-    deleteIssueTypeService
+    deleteIssueTypeService,
+    createSmartProjectService
 } = require("../services/projectService");
+const { generateProjectSuggestion } = require("../services/aiService");
 const { rescheduleProjectCrons } = require('../services/cronService');
 const { StatusCodes } = require("http-status-codes");
 
@@ -262,6 +264,51 @@ const getIssueTypes = async (req, res, next) => {
     }
 };
 
+// AI Smart Project — Bước 1: Sinh suggestion và tạo luôn dự án nháp
+const createSmartProject = async (req, res, next) => {
+    try {
+        const userId = req.user._id;
+        const { prompt } = req.body;
+
+        if (!prompt) {
+            return res.status(400).json({ EC: 1, EM: "Missing prompt data." });
+        }
+
+        // Sinh cấu trúc từ AI
+        const suggestion = await generateProjectSuggestion(prompt);
+
+        // Tạo project và truyền tham số isDraft = true
+        const result = await createSmartProjectService(suggestion, userId, true);
+
+        return res.status(StatusCodes.CREATED).json({
+            EC: 0,
+            EM: "Smart project draft created successfully",
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const confirmSmartProject = async (req, res, next) => {
+    try {
+        const { projectId } = req.params;
+        const userId = req.user._id;
+        const userRole = req.user.role;
+
+        // Chỉ cần gọi updateProjectService để set isAiDraft = false
+        const project = await updateProjectService(projectId, { isAiDraft: false }, userId, userRole);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Smart project confirmed successfully",
+            data: project
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createProject,
     getAllProjects,
@@ -277,5 +324,7 @@ module.exports = {
     getBoardColumns,
     getIssueTypes,
     deleteBoardColumn,
-    deleteIssueType
+    deleteIssueType,
+    createSmartProject,
+    confirmSmartProject
 };

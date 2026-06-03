@@ -14,13 +14,18 @@ const {
     getBoardColumns,
     getIssueTypes,
     deleteBoardColumn,
-    deleteIssueType
+    deleteIssueType,
+    createSmartProject,
+    confirmSmartProject
 } = require("../controllers/projectController");
 const auth = require("../middleware/auth");
 
 const routerAPI = express.Router();
 
 routerAPI.use(auth);
+
+routerAPI.post("/ai/create", createSmartProject);
+routerAPI.put("/:projectId/ai-confirm", confirmSmartProject);
 
 // Project General
 routerAPI.post("/", createProject);
