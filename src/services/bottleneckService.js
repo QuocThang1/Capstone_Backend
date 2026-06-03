@@ -7,8 +7,8 @@ const getAllBottlenecksService = async () => {
     return await bottleneckDAO.getAllBottlenecks();
 };
 
-const getBottlenecksByProjectService = async (projectId) => {
-    return await bottleneckDAO.getBottlenecksByProjectId(projectId);
+const getBottlenecksByProjectService = async (projectId, filters = {}) => {
+    return await bottleneckDAO.getBottlenecksByProjectId(projectId, filters);
 };
 
 const getMyBottlenecksService = async (userId) => {
@@ -34,7 +34,7 @@ const requestResolveBottleneckService = async (bottleneckId, userId) => {
     const project = await projectDAO.getProjectById(issue.projectId);
 
     // Tìm leader của dự án
-    const leaderMember = project.members.find(m => m.role === 'leader');
+    const leaderMember = project.members.find((m) => m.role === "leader");
     const isLeader = leaderMember && leaderMember.accountId._id.toString() === userId.toString();
     const isAssignee = issue.assigneeId && issue.assigneeId.toString() === userId.toString();
 
@@ -75,7 +75,7 @@ const approveResolveBottleneckService = async (bottleneckId, isApproved, current
 
     // 2. Kiểm tra quyền của người gọi API: Có phải Leader của dự án đó không?
     const project = await projectDAO.getProjectById(issue.projectId);
-    const leaderMember = project.members.find(m => m.role === 'leader');
+    const leaderMember = project.members.find((m) => m.role === "leader");
     const isLeader = leaderMember && leaderMember.accountId._id.toString() === currentUserId.toString();
 
     if (!isLeader) {
@@ -94,11 +94,16 @@ const approveResolveBottleneckService = async (bottleneckId, isApproved, current
     return await bottleneckDAO.updateBottleneckStatus(bottleneckId, updateData);
 };
 
+const getUnresolvedBottleneckCountByUserService = async (userId) => {
+    return await bottleneckDAO.countUnresolvedBottlenecksByUser(userId);
+};
+
 module.exports = {
     getAllBottlenecksService,
     getBottlenecksByProjectService,
     getMyBottlenecksService,
     getBottlenecksByIssueService,
     requestResolveBottleneckService,
-    approveResolveBottleneckService
+    approveResolveBottleneckService,
+    getUnresolvedBottleneckCountByUserService
 };
