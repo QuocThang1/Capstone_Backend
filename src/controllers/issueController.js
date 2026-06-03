@@ -8,7 +8,8 @@ const { createIssueService,
     createSubtaskService,
     getSubtasksService,
     uploadAttachmentService,
-    deleteAttachmentService
+    deleteAttachmentService,
+    getTop3EarliestDueIssuesService
 } = require("../services/issueService");
 const { suggestAssigneesForIssue } = require("../services/aiService");
 const { StatusCodes } = require("http-status-codes");
@@ -216,6 +217,19 @@ const deleteAttachment = async (req, res, next) => {
 };
 
 
+const getTop3EarliestDueIssues = async (req, res, next) => {
+    try {
+        const issues = await getTop3EarliestDueIssuesService(req.user._id);
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Fetch top 3 earliest due issues successfully",
+            data: issues
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getIssuesBySprint,
@@ -228,5 +242,6 @@ module.exports = {
     getSubtasks,
     suggestAssignees,
     uploadAttachment,
-    deleteAttachment
+    deleteAttachment,
+    getTop3EarliestDueIssues
 };

@@ -13,11 +13,18 @@ const calculateTimeExpect = (startDate, dueDate, storyPoints) => {
     if (!startDate || !dueDate || !storyPoints) return 0;
     const sDate = new Date(startDate);
     const dDate = new Date(dueDate);
-    if (dDate <= sDate) return 0;
+    
+    if (dDate <= sDate) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Due Date must be after Start Date.");
+    }
 
     // (Thời gian chênh lệch tính theo ms) / (1000 * 60 * 60) để ra số Giờ
     const diffHours = (dDate - sDate) / (1000 * 60 * 60);
-    const timeExpect = diffHours * storyPoints;
+    const timeExpect = storyPoints * 4;
+
+    if (timeExpect >= diffHours) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "The estimated time must be less than the actual time.");
+    }
 
     return parseFloat(timeExpect.toFixed(1));
 };
@@ -476,6 +483,10 @@ const deleteAttachmentService = async (issueId, attachmentId, userId, io) => {
     return issue.attachments;
 };
 
+const getTop3EarliestDueIssuesService = async (userId) => {
+    return await issueDAO.getTop3EarliestDueIssuesByUser(userId);
+};
+
 module.exports = {
     createIssueService,
     getIssuesBySprintService,
@@ -487,5 +498,6 @@ module.exports = {
     createSubtaskService,
     getSubtasksService,
     uploadAttachmentService,
-    deleteAttachmentService
+    deleteAttachmentService,
+    getTop3EarliestDueIssuesService
 };
