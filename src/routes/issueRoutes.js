@@ -8,7 +8,8 @@ const { createIssue,
     deleteIssue,
     createSubtask,
     getSubtasks,
-    suggestAssignees
+    suggestAssignees,
+    getTop3EarliestDueIssues
 } = require("../controllers/issueController");
 const { uploadCloud } = require("../config/cloudinary");
 const { uploadAttachment, deleteAttachment } = require("../controllers/issueController");
@@ -21,6 +22,7 @@ routerAPI.use(auth);
 routerAPI.post("/subtask", createSubtask);
 routerAPI.post("/", createIssue);
 routerAPI.get("/my/all", getMyIssues);
+routerAPI.get("/my/earliest-due", getTop3EarliestDueIssues);
 routerAPI.get("/my/project/:projectId", getMyIssuesByProject);
 routerAPI.get("/sprint/:sprintId", getIssuesBySprint);
 routerAPI.get("/project/:projectId", getIssuesByProject);
