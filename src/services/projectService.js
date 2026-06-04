@@ -5,6 +5,7 @@ const issueDAO = require("../DAO/issueDAO");
 const historyDAO = require("../DAO/historyDAO");
 const commentDAO = require("../DAO/commentDAO");
 const workflowDAO = require("../DAO/workflowDAO");
+const bottleneckDAO = require("../DAO/bottleneckDAO");
 const jwt = require("jsonwebtoken");
 const { sendInvitationEmail } = require("../utils/mailer");
 const ApiError = require("../utils/ApiError");
@@ -206,7 +207,8 @@ const deleteProjectService = async (projectId, userId, userRole) => {
     // Xóa tất cả các dữ liệu liên quan
     if (issueIds.length > 0) {
         await commentDAO.deleteManyComments({ issueId: { $in: issueIds } });
-        await historyDAO.deleteManyHistories({ issueId: { $in: issueIds } }); // <-- THÊM DÒNG NÀY
+        await historyDAO.deleteManyHistories({ issueId: { $in: issueIds } });
+        await bottleneckDAO.deleteManyBottlenecks({ issueId: { $in: issueIds } });
     }
 
     await issueDAO.deleteManyIssues({ projectId });

@@ -3,6 +3,7 @@ const projectDAO = require("../DAO/projectDAO");
 const sprintDAO = require("../DAO/sprintDAO");
 const commentDAO = require("../DAO/commentDAO");
 const historyDAO = require("../DAO/historyDAO");
+const bottleneckDAO = require("../DAO/bottleneckDAO");
 const mongoose = require("mongoose");
 const { createHistoryRecord } = require("./historyService");
 const { cloudinary } = require("../config/cloudinary");
@@ -360,9 +361,10 @@ const deleteIssueService = async (issueId, userId) => {
         subtasks.forEach(sub => issueIdsToDelete.push(sub._id));
     }
 
-    // Xóa tất cả comment và history liên quan
+    // Xóa tất cả comment, history và bottleneck liên quan
     await commentDAO.deleteManyComments({ issueId: { $in: issueIdsToDelete } });
     await historyDAO.deleteManyHistories({ issueId: { $in: issueIdsToDelete } });
+    await bottleneckDAO.deleteManyBottlenecks({ issueId: { $in: issueIdsToDelete } });
 
     // Nếu issue này là một task cha (không có parentId), xóa tất cả sub-task của nó
     if (!issue.parentId) {

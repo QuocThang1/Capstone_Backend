@@ -88,6 +88,10 @@ class BottleneckDAO {
         return await Bottleneck.findByIdAndUpdate(id, { $set: updateData }, { returnDocument: "after" });
     }
 
+    async deleteManyBottlenecks(filter) {
+        return await Bottleneck.deleteMany(filter);
+    }
+
     async countUnresolvedBottlenecksByUser(userId) {
         const mongoose = require("mongoose");
         const Project = require("../models/project");

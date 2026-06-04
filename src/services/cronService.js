@@ -8,6 +8,8 @@ const activeNotifJobs = {};
 const activeBottleJobs = {};
 const cronMetadata = {};
 const runningJobs = new Set();
+let draftCleanupJob = null;
+let globalIo = null;
 
 const runTrackedJob = async (jobId, callback) => {
     runningJobs.add(jobId);
@@ -75,22 +77,42 @@ const startProjectCrons = (project, io) => {
     };
 };
 
-const initializeAllCronJobs = async (io) => {
+const setupDraftCleanupJob = async () => {
     try {
-        console.log("[Cron] Booting up Dynamic Job Registration...");
-        // Xóa project nháp
-        cron.schedule(
-            "0 0 * * *",
+        const SystemSettings = require("../models/systemSettings");
+        const settings = await SystemSettings.findOne({ key: "platform" }) || {
+            draftCleanupTime: "03:00",
+            defaultTimezone: "Asia/Ho_Chi_Minh"
+        };
+        const cleanupTime = settings.draftCleanupTime || "03:00";
+        const timezone = settings.defaultTimezone || "Asia/Ho_Chi_Minh";
+
+        const [hour, minute] = cleanupTime.split(":");
+        const cronExpression = `${Number(minute)} ${Number(hour)} * * *`;
+
+        if (draftCleanupJob) {
+            draftCleanupJob.stop();
+            console.log("[Cron: System] Stopped old draft cleanup job.");
+        }
+
+        draftCleanupJob = cron.schedule(
+            cronExpression,
             async () => {
                 console.log("[Cron: System] Running cleanup for AI Draft projects...");
                 try {
-                    // Lấy tất cả các project có isAiDraft: true
                     const draftsData = await projectDAO.getAllProjects({ isAiDraft: true }, 1, 9999);
                     for (const draft of draftsData.projects) {
                         try {
-                            // Xóa project bằng quyền admin để bỏ qua check member
                             await projectService.deleteProjectService(draft._id, null, "admin");
                             console.log(`[Cron: System] Deleted draft project: ${draft._id}`);
+                            
+                            // Emit socket event to update frontend instantly
+                            if (globalIo && draft.members) {
+                                draft.members.forEach(m => {
+                                    const userId = m.accountId._id || m.accountId;
+                                    globalIo.to(`user_${userId}`).emit("project_deleted", { projectId: draft._id });
+                                });
+                            }
                         } catch (err) {
                             console.error(`[Cron: System] Failed to delete draft ${draft._id}:`, err.message);
                         }
@@ -99,8 +121,20 @@ const initializeAllCronJobs = async (io) => {
                     console.error("[Cron: System] Error fetching draft projects: ", err);
                 }
             },
-            { timezone: "UTC" }
+            { timezone }
         );
+        console.log(`[Cron: System] Scheduled draft cleanup job at ${cleanupTime} (${timezone})`);
+    } catch (err) {
+        console.error("[Cron: System] Error setting up draft cleanup job:", err);
+    }
+};
+
+const initializeAllCronJobs = async (io) => {
+    try {
+        console.log("[Cron] Booting up Dynamic Job Registration...");
+        globalIo = io;
+
+        await setupDraftCleanupJob();
 
         const allProjectsData = await projectDAO.getAllProjects({}, 1, 9999);
 
@@ -151,5 +185,6 @@ module.exports = {
     startCronJobs: initializeAllCronJobs,
     rescheduleProjectCrons,
     stopProjectCrons,
-    getCronJobHealth
+    getCronJobHealth,
+    setupDraftCleanupJob
 };
