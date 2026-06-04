@@ -1,13 +1,9 @@
-const path = require('path');
-const envPath = path.resolve(__dirname, '../.env');
-require('dotenv').config({ path: envPath });
-// Diagnostic: show which .env was loaded and whether critical vars exist
-console.log(`Loaded env from: ${envPath}`);
-console.log('MONGO_DB_URL present:', !!process.env.MONGO_DB_URL);
-
 const express = require('express')
 const cors = require('cors')
 const http = require('http')
+const { env, getCorsOrigins, validateEnv } = require('./config/env');
+
+validateEnv();
 
 const { Server } = require('socket.io');
 const initializeSocket = require('./socket/socketHandler');
@@ -40,12 +36,15 @@ const server = http.createServer(app)
 
 app.set('trust proxy', true);
 
-const port = process.env.PORT || 8080
-const host = process.env.HOST || 'localhost'
+const corsOptions = {
+    origin: getCorsOrigins(),
+    credentials: true,
+};
 
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL,
+        origin: getCorsOrigins(),
+        credentials: true,
         methods: ["GET", "POST"]
     }
 });
@@ -54,7 +53,7 @@ app.set('io', io);
 
 initializeSocket(io);
 
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(trackRuntimeUsage);
@@ -85,8 +84,8 @@ app.use(errorHandlingMiddleware);
         startCronJobs(io);
         startSystemHealthMonitor(io);
 
-        server.listen(port, host, () => {
-            console.log(`Backend listening at http://${host}:${port}`)
+        server.listen(env.port, env.host, () => {
+            console.log(`Backend listening on ${env.host}:${env.port}`)
         })
     } catch (error) {
         console.error("Error connecting to DB:", error);

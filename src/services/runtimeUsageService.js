@@ -3,6 +3,7 @@ const DEFAULT_REQUEST_TARGET = 20;
 const DEFAULT_WEBSOCKET_TARGET = 100;
 const DEFAULT_DATABASE_TARGET = 50;
 const DEFAULT_FRONTEND_TARGET = 100;
+const { env } = require("../config/env");
 
 const requestEvents = [];
 const databaseEvents = [];
@@ -67,10 +68,10 @@ const removeFrontendClient = (socketId) => {
 const getRuntimeUsage = ({ activeWsConnections = 0, runningJobs = 0, totalJobs = 0 } = {}) => {
     pruneRequestEvents();
     pruneDatabaseEvents();
-    const requestTarget = getPositiveNumber(process.env.SYSTEM_HEALTH_REQUEST_TARGET, DEFAULT_REQUEST_TARGET);
-    const websocketTarget = getPositiveNumber(process.env.SYSTEM_HEALTH_WEBSOCKET_TARGET, DEFAULT_WEBSOCKET_TARGET);
-    const databaseTarget = getPositiveNumber(process.env.SYSTEM_HEALTH_DATABASE_TARGET, DEFAULT_DATABASE_TARGET);
-    const frontendTarget = getPositiveNumber(process.env.SYSTEM_HEALTH_FRONTEND_TARGET, DEFAULT_FRONTEND_TARGET);
+    const requestTarget = getPositiveNumber(env.systemHealth.requestTarget, DEFAULT_REQUEST_TARGET);
+    const websocketTarget = getPositiveNumber(env.systemHealth.websocketTarget, DEFAULT_WEBSOCKET_TARGET);
+    const databaseTarget = getPositiveNumber(env.systemHealth.databaseTarget, DEFAULT_DATABASE_TARGET);
+    const frontendTarget = getPositiveNumber(env.systemHealth.frontendTarget, DEFAULT_FRONTEND_TARGET);
     const counts = requestEvents.reduce((accumulator, event) => {
         accumulator[event.category] = (accumulator[event.category] || 0) + 1;
         return accumulator;

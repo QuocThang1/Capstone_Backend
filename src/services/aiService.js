@@ -4,8 +4,9 @@ const projectDAO = require("../DAO/projectDAO");
 const accountDAO = require("../DAO/accountDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const { env } = require("../config/env");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(env.ai.geminiApiKey);
 
 const suggestAssigneesForIssue = async (issueId, userId) => {
     const issue = await issueDAO.getIssueById(issueId);

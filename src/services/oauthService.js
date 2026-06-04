@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { getOrCreateSystemSettings } = require("./adminSettingsService");
+const { env } = require("../config/env");
 
 const handleGoogleAuth = async (googleProfile) => {
     try {
@@ -60,7 +61,7 @@ const handleGoogleAuth = async (googleProfile) => {
             avatar: user.avatar,
         };
 
-        const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
+        const access_token = jwt.sign(payload, env.jwt.secret, {
             expiresIn: `${settings.sessionTimeoutMinutes}m`,
         });
 
@@ -137,7 +138,7 @@ const handleGitHubAuth = async (githubProfile) => {
             avatar: user.avatar,
         };
 
-        const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
+        const access_token = jwt.sign(payload, env.jwt.secret, {
             expiresIn: `${settings.sessionTimeoutMinutes}m`,
         });
 

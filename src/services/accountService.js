@@ -6,6 +6,7 @@ const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { getOrCreateSystemSettings } = require("./adminSettingsService");
 const OTP = require("../models/otp");
+const { env } = require("../config/env");
 
 const saltRounds = 10;
 const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -21,6 +22,7 @@ const validatePasswordStrength = (password, settings) => {
 
 const handleSignUpService = async ({ username, password, fullName, email, phone, dob, gender, skills }) => {
     const settings = await getOrCreateSystemSettings();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!settings.allowPublicSignups) {
         throw new ApiError(StatusCodes.FORBIDDEN, "Public signups are currently disabled");
     }
@@ -28,7 +30,7 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
         throw new ApiError(StatusCodes.FORBIDDEN, "Password registration is currently disabled");
     }
     if (settings.requireEmailVerification) {
-        const verifiedOtp = await OTP.findOne({ email, verified: true, expiresAt: { $gt: new Date() } });
+        const verifiedOtp = await OTP.findOne({ email: normalizedEmail, verified: true, expiresAt: { $gt: new Date() } });
         if (!verifiedOtp) {
             throw new ApiError(StatusCodes.FORBIDDEN, "Email verification is required before registration");
         }
@@ -36,10 +38,10 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
     validatePasswordStrength(password, settings);
 
     // If username is not provided, generate it from email (first part before @)
-    const finalUsername = username || email.split('@')[0];
+    const finalUsername = username || normalizedEmail.split('@')[0];
 
     const existingUser = await accountDAO.findByUsername(finalUsername);
-    const existingEmail = await accountDAO.findByEmail(email);
+    const existingEmail = await accountDAO.findByEmail(normalizedEmail);
 
     if (existingEmail) {
         throw new ApiError(StatusCodes.CONFLICT, "Email already exists");
@@ -56,7 +58,7 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
         username: finalUsername,
         password: hashedPassword,
         fullName,
-        email,
+        email: normalizedEmail,
         phone,
         dob,
         gender,
@@ -65,9 +67,33 @@ const handleSignUpService = async ({ username, password, fullName, email, phone,
 
     const newUser = await accountDAO.createAccount(newUserData);
     if (settings.requireEmailVerification) {
-        await OTP.deleteMany({ email });
+        await OTP.deleteMany({ email: normalizedEmail });
     }
-    return newUser;
+
+    const payload = {
+        id: newUser._id,
+        username: newUser.username,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        phone: newUser.phone,
+        dob: newUser.dob,
+        gender: newUser.gender,
+        role: newUser.role,
+    };
+
+    const access_token = jwt.sign(payload, env.jwt.secret, {
+        expiresIn: `${settings.sessionTimeoutMinutes}m`,
+    });
+
+    const userResponse = newUser.toObject ? newUser.toObject() : { ...newUser };
+    if (userResponse.password) {
+        delete userResponse.password;
+    }
+
+    return {
+        access_token,
+        user: userResponse,
+    };
 };
 
 const handleLoginService = async (usernameOrEmail, password) => {
@@ -111,7 +137,7 @@ const handleLoginService = async (usernameOrEmail, password) => {
         role: user.role,
     };
 
-    const access_token = jwt.sign(payload, process.env.JWT_SECRET, {
+    const access_token = jwt.sign(payload, env.jwt.secret, {
         expiresIn: `${settings.sessionTimeoutMinutes}m`,
     });
 

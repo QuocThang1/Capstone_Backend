@@ -10,6 +10,7 @@ const { sendInvitationEmail } = require("../utils/mailer");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const { get } = require("mongoose");
+const { env } = require("../config/env");
 
 const createProjectService = async (projectData, creatorId) => {
     const { name, key, description, boardColumns, issueTypes } = projectData;
@@ -237,11 +238,9 @@ const addMemberService = async (projectId, inviterId, memberEmail, role = "membe
     if (isAlreadyMember) throw new ApiError(StatusCodes.BAD_REQUEST, "User is already a member of this project.");
 
     // Tạo JWT Token mời
-    const token = jwt.sign({ projectId, accountId: accountToAdd._id, role }, process.env.JWT_SECRET, { expiresIn: "3d" });
+    const token = jwt.sign({ projectId, accountId: accountToAdd._id, role }, env.jwt.secret, { expiresIn: "3d" });
 
-    // Xây dựng link Frontend. Bạn hãy đảm bảo thêm FRONTEND_URL vào file .env
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const acceptLink = `${frontendUrl}/project/invite?token=${token}`;
+    const acceptLink = `${env.clientUrl}/project/invite?token=${token}`;
 
     const inviterName = inviter.accountId.fullName || inviter.accountId.username;
 
@@ -254,7 +253,7 @@ const addMemberService = async (projectId, inviterId, memberEmail, role = "membe
 // THÊM: Service đồng ý tham gia khi Frontend gửi token lên
 const respondToInvitationService = async (token, currentUserId) => {
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, env.jwt.secret);
         const { projectId, accountId, role } = decoded;
 
         if (!currentUserId || currentUserId.toString() !== accountId.toString()) {

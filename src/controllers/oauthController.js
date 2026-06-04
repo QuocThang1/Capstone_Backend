@@ -2,6 +2,7 @@ const axios = require('axios');
 const { handleGoogleAuth, handleGitHubAuth } = require("../services/oauthService");
 const { StatusCodes } = require("http-status-codes");
 const { createAuditLog } = require("../services/adminAuditLogService");
+const { env } = require("../config/env");
 
 const writeLoginAuditLog = (req, user, provider) => createAuditLog(req, {
     actorId: user?._id,
@@ -26,8 +27,8 @@ const handleGoogleCallback = async (req, res, next) => {
         const tokenResponse = await axios.post(
             'https://oauth2.googleapis.com/token',
             {
-                client_id: process.env.GOOGLE_CLIENT_ID,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                client_id: env.oauth.googleClientId,
+                client_secret: env.oauth.googleClientSecret,
                 code,
                 grant_type: 'authorization_code',
                 redirect_uri: 'postmessage'
@@ -86,8 +87,8 @@ const handleGitHubCallback = async (req, res, next) => {
         const tokenResponse = await axios.post(
             'https://github.com/login/oauth/access_token',
             {
-                client_id: process.env.GITHUB_CLIENT_ID,
-                client_secret: process.env.GITHUB_CLIENT_SECRET,
+                client_id: env.oauth.githubClientId,
+                client_secret: env.oauth.githubClientSecret,
                 code,
             },
             {

@@ -25,15 +25,18 @@ const writeLoginAuditLog = (req, user) => createAuditLog(req, {
     details: "Logged in with password.",
 }).catch((error) => console.error("Unable to write audit log:", error.message));
 
+const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const normalizeOtp = (otp) => String(otp || "").trim();
+
 const handleSignUp = async (req, res, next) => {
     try {
         const { username, password, fullName, email, phone, dob, gender, skills } = req.body;
 
-        const user = await handleSignUpService({
+        const data = await handleSignUpService({
             username,
             password,
             fullName,
-            email,
+            email: normalizeEmail(email),
             phone,
             dob,
             gender,
@@ -43,7 +46,8 @@ const handleSignUp = async (req, res, next) => {
         return res.status(StatusCodes.CREATED).json({
             EC: 0,
             EM: "User created successfully",
-            data: user
+            access_token: data.access_token,
+            data: data.user
         });
     } catch (error) {
         next(error);
@@ -114,7 +118,7 @@ const updateProfile = async (req, res, next) => {
 
 const sendOTP = async (req, res, next) => {
     try {
-        const { email } = req.body;
+        const email = normalizeEmail(req.body.email);
         const settings = await getOrCreateSystemSettings();
 
         if (!email) {
@@ -162,7 +166,8 @@ const sendOTP = async (req, res, next) => {
 
 const verifyOTP = async (req, res, next) => {
     try {
-        const { email, otp } = req.body;
+        const email = normalizeEmail(req.body.email);
+        const otp = normalizeOtp(req.body.otp);
 
         if (!email || !otp) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -241,7 +246,9 @@ const getStarredProjects = async (req, res, next) => {
 
 const forgotPassword = async (req, res, next) => {
     try {
-        const { email, otp, newPassword } = req.body;
+        const email = normalizeEmail(req.body.email);
+        const otp = normalizeOtp(req.body.otp);
+        const { newPassword } = req.body;
         const settings = await getOrCreateSystemSettings();
         if (!settings.enablePasswordResetEmail) {
             throw new ApiError(StatusCodes.FORBIDDEN, "Password reset email is currently disabled");
@@ -282,7 +289,8 @@ const forgotPassword = async (req, res, next) => {
 const changePassword = async (req, res, next) => {
     try {
         const userId = req.user._id;
-        const { oldPassword, otp, newPassword } = req.body;
+        const { oldPassword, newPassword } = req.body;
+        const otp = normalizeOtp(req.body.otp);
 
         if (!oldPassword || !otp || !newPassword) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -292,7 +300,7 @@ const changePassword = async (req, res, next) => {
         }
 
         // Verify OTP
-        const email = req.user.email;
+        const email = normalizeEmail(req.user.email);
         const otpDoc = await OTP.findOne({ email, otp });
         if (!otpDoc) {
             return res.status(StatusCodes.BAD_REQUEST).json({
