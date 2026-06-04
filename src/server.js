@@ -58,6 +58,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(trackRuntimeUsage);
 
+app.get('/api/health', (req, res) => {
+    res.status(200).json({
+        EC: 0,
+        EM: "TASKA backend is running"
+    });
+});
+
 app.use('/api/admin', adminRouter);
 app.use('/v1/api/admin', adminRouter);
 app.use('/v1/api/system-settings', systemSettingsRouter);
