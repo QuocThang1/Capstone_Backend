@@ -9,7 +9,9 @@ const { createIssue,
     createSubtask,
     getSubtasks,
     suggestAssignees,
-    getTop3EarliestDueIssues
+    getTop3EarliestDueIssues,
+    evaluateIssue,
+    deleteEvaluation
 } = require("../controllers/issueController");
 const { uploadCloud } = require("../config/cloudinary");
 const { uploadAttachment, deleteAttachment } = require("../controllers/issueController");
@@ -32,4 +34,6 @@ routerAPI.put("/:issueId", updateIssue);
 routerAPI.delete("/:issueId", deleteIssue);
 routerAPI.post("/:issueId/attachments", uploadCloud.single('file'), uploadAttachment);
 routerAPI.delete("/:issueId/attachments/:attachmentId", deleteAttachment);
+routerAPI.post("/:issueId/evaluate", evaluateIssue);
+routerAPI.delete("/:issueId/evaluate", deleteEvaluation);
 module.exports = routerAPI;

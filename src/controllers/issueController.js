@@ -1,4 +1,5 @@
-const { createIssueService,
+const {
+    createIssueService,
     getIssuesBySprintService,
     getIssuesByProjectService,
     getMyIssuesByProjectService,
@@ -9,7 +10,9 @@ const { createIssueService,
     getSubtasksService,
     uploadAttachmentService,
     deleteAttachmentService,
-    getTop3EarliestDueIssuesService
+    getTop3EarliestDueIssuesService,
+    evaluateIssueService,
+    deleteEvaluationService
 } = require("../services/issueService");
 const { suggestAssigneesForIssue } = require("../services/aiService");
 const { StatusCodes } = require("http-status-codes");
@@ -103,7 +106,7 @@ const updateIssue = async (req, res, next) => {
         const updateData = req.body;
         const userId = req.user._id;
 
-        const io = req.app.get('io');
+        const io = req.app.get("io");
 
         const updatedIssue = await updateIssueService(issueId, updateData, userId, io);
 
@@ -193,7 +196,7 @@ const uploadAttachment = async (req, res, next) => {
 
         if (!file) throw new ApiError(StatusCodes.BAD_REQUEST, "No file uploaded");
 
-        const io = req.app.get('io');
+        const io = req.app.get("io");
         const attachments = await uploadAttachmentService(issueId, userId, file, io);
 
         res.status(StatusCodes.OK).json({ EC: 0, EM: "Uploaded successfully", data: attachments });
@@ -207,7 +210,7 @@ const deleteAttachment = async (req, res, next) => {
         const { issueId, attachmentId } = req.params;
         const userId = req.user._id;
 
-        const io = req.app.get('io');
+        const io = req.app.get("io");
         const attachments = await deleteAttachmentService(issueId, attachmentId, userId, io);
 
         res.status(StatusCodes.OK).json({ EC: 0, EM: "Deleted successfully", data: attachments });
@@ -215,7 +218,6 @@ const deleteAttachment = async (req, res, next) => {
         next(error);
     }
 };
-
 
 const getTop3EarliestDueIssues = async (req, res, next) => {
     try {
@@ -225,6 +227,38 @@ const getTop3EarliestDueIssues = async (req, res, next) => {
             EM: "Fetch top 3 earliest due issues successfully",
             data: issues
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const evaluateIssue = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const { rating, feedback } = req.body;
+        const userId = req.user._id;
+        const io = req.app.get("io");
+
+        const updatedIssue = await evaluateIssueService(issueId, userId, rating, feedback, io);
+
+        return res.status(StatusCodes.OK).json({
+            EC: 0,
+            EM: "Issue evaluated successfully",
+            data: updatedIssue
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteEvaluation = async (req, res, next) => {
+    try {
+        const { issueId } = req.params;
+        const userId = req.user._id;
+        const io = req.app.get("io");
+
+        const updatedIssue = await deleteEvaluationService(issueId, userId, io);
+        res.status(StatusCodes.OK).json({ EC: 0, EM: "Evaluation deleted successfully", data: updatedIssue });
     } catch (error) {
         next(error);
     }
@@ -243,5 +277,7 @@ module.exports = {
     suggestAssignees,
     uploadAttachment,
     deleteAttachment,
-    getTop3EarliestDueIssues
+    getTop3EarliestDueIssues,
+    evaluateIssue,
+    deleteEvaluation
 };
