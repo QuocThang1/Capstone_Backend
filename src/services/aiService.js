@@ -1,11 +1,14 @@
 const Groq = require("groq-sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const issueDAO = require("../DAO/issueDAO");
 const projectDAO = require("../DAO/projectDAO");
 const accountDAO = require("../DAO/accountDAO");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const { env } = require("../config/env");
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(env.ai.geminiApiKey);
+const groq = new Groq({ apiKey: env.ai.groqApiKey });
 
 const suggestAssigneesForIssue = async (issueId, userId) => {
     const issue = await issueDAO.getIssueById(issueId);

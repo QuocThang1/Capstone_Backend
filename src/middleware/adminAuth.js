@@ -1,7 +1,7 @@
-require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const { env } = require("../config/env");
 
 const authAdmin = (req, res, next) => {
     if (!req.headers.authorization) {
@@ -11,7 +11,7 @@ const authAdmin = (req, res, next) => {
     const token = req.headers.authorization.split(" ")[1];
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, env.jwt.secret);
 
 
         if (decoded.role !== "admin") {

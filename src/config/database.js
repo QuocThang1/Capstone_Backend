@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { trackDatabaseOperation } = require("../services/runtimeUsageService");
+const { env } = require("./env");
 
 const dbState = [
     { value: 0, label: "Disconnected" },
@@ -10,11 +11,10 @@ const dbState = [
 
 const connection = async () => {
     try {
-        // Strict URI Validation
-        const dbUri = process.env.MONGO_DB_URL;
-        if (!dbUri || typeof dbUri !== 'string') {
-            console.error("\n ERROR: MONGO_DB_URL is missing or invalid in .env file.");
-            console.error("   Make sure your .env file contains: MONGO_DB_URL=mongodb+srv://...");
+        const dbUri = env.mongodbUri;
+        if (!dbUri || typeof dbUri !== "string") {
+            console.error("\n ERROR: MONGODB_URI is missing or invalid.");
+            console.error("   Make sure your environment contains: MONGODB_URI=mongodb+srv://...");
             process.exit(1);
         }
 
@@ -31,7 +31,7 @@ const connection = async () => {
         mongoose.connection.getClient().on("commandStarted", trackDatabaseOperation);
 
         // Success Log (hide credentials, show host)
-        const dbHost = dbUri.split('@')[1] || 'localhost';
+        const dbHost = dbUri.split("@")[1] || "mongodb";
         console.log(`\n MongoDB Connected to: ${dbHost}`);
 
         // Handle connection errors and disconnects
@@ -50,7 +50,7 @@ const connection = async () => {
     } catch (error) {
         console.error("\n Error connecting to MongoDB:", error.message);
         if (error.name === 'MongoNetworkError') {
-            console.error("Network Error: Check your MONGO_DB_URL and internet connection.");
+            console.error("Network Error: Check your MONGODB_URI and internet connection.");
         } else if (error.name === 'MongoAuthenticationError') {
             console.error("Authentication Error: Check your MongoDB credentials in .env.");
         }

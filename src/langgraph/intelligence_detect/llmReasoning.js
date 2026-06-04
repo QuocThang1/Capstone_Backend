@@ -1,5 +1,9 @@
 const axios = require("axios");
 const { addLog } = require("./state");
+const { env } = require("../../config/env");
+
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_MODEL = "llama-3.1-8b-instant";
 
 const compactForLlm = (state) => ({
     query: state.query,
@@ -44,9 +48,9 @@ const parseJsonFromText = (text) => {
 };
 
 const callOpenAiCompatible = async (payload) => {
-    const apiKey = process.env.INTELLIGENCE_DETECT_LLM_API_KEY || process.env.OPENAI_API_KEY;
-    const baseUrl = process.env.INTELLIGENCE_DETECT_LLM_BASE_URL || "https://api.openai.com/v1";
-    const model = process.env.INTELLIGENCE_DETECT_LLM_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const apiKey = env.ai.groqApiKey;
+    const baseUrl = GROQ_BASE_URL;
+    const model = GROQ_MODEL;
 
     if (!apiKey) return null;
 
@@ -95,7 +99,7 @@ const llmReasoningNode = async (state) => {
             confidence: Number(llmOutput.confidence || 0.75),
             insufficient_data: llmOutput.insufficient_data || [],
         };
-        addLog(state, "llm_reasoning_completed", { model: process.env.INTELLIGENCE_DETECT_LLM_MODEL || process.env.OPENAI_MODEL });
+        addLog(state, "llm_reasoning_completed", { model: GROQ_MODEL });
     } catch (error) {
         state.metadata.llmFallback = true;
         state.llmAnalysis = ruleBasedAnalysis(state, error.message);

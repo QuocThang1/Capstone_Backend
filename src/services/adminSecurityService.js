@@ -2,6 +2,7 @@ const { StatusCodes } = require("http-status-codes");
 const ApiError = require("../utils/ApiError");
 const AuditLog = require("../models/auditLog");
 const DataPrivacyRequest = require("../models/dataPrivacyRequest");
+const { env } = require("../config/env");
 
 const normalizeDataRequest = (request) => ({
     id: request._id.toString(),
@@ -15,7 +16,7 @@ const normalizeDataRequest = (request) => ({
 });
 
 const getSecurityPosture = async () => {
-    const mongoUri = process.env.MONGO_DB_URL || "";
+    const mongoUri = env.mongodbUri || "";
     const hasMongoTls = mongoUri.startsWith("mongodb+srv://") || /[?&]tls=true(?:&|$)/i.test(mongoUri);
     const auditLogCount = await AuditLog.countDocuments();
 

@@ -2,6 +2,7 @@ const os = require("os");
 const mongoose = require("mongoose");
 const { getCronJobHealth } = require("./cronService");
 const { getRuntimeUsage } = require("./runtimeUsageService");
+const { env } = require("../config/env");
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -48,7 +49,7 @@ const getSystemHealthService = async (io) => {
     const memory = process.memoryUsage();
     const cronHealth = getCronJobHealth();
     const activeWsConnections = io?.engine?.clientsCount || 0;
-    const hasStorageConfig = Boolean(process.env.CLOUDINARY_CLOUD_NAME);
+    const hasStorageConfig = Boolean(env.cloudinary.cloudName);
     const usage = getRuntimeUsage({
         activeWsConnections,
         runningJobs: cronHealth.runningJobs,

@@ -1,25 +1,28 @@
 const nodemailer = require('nodemailer');
+const { env } = require("../config/env");
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+  host: env.mail.host,
+  port: env.mail.port,
+  secure: env.mail.secure,
   auth: {
-    user: process.env.SMTP_USER || process.env.EMAIL_USER,
-    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
+    user: env.mail.user,
+    pass: env.mail.pass,
   },
 });
 
 const transporterSendMail = transporter.sendMail.bind(transporter);
 
 const sendSystemMail = ({ from, ...options }) => transporterSendMail({
-  from: from || process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER,
+  from: env.mail.from,
+  replyTo: env.mail.replyTo,
   ...options,
 });
 
 const sendInvitationEmail = async (toEmail, inviterName, projectName, acceptLink) => {
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: env.mail.from,
+    replyTo: env.mail.replyTo,
     to: toEmail,
     subject: `Invitation to join the project ${projectName} on Taska`,
     html: `

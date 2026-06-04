@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const { StatusCodes } = require("http-status-codes");
 const ApiError = require("../utils/ApiError");
 const { getOrCreateSystemSettings } = require("../services/adminSettingsService");
+const { env } = require("../config/env");
 
 const maintenanceMode = async (req, res, next) => {
     try {
@@ -20,7 +21,7 @@ const maintenanceMode = async (req, res, next) => {
         if (settings.allowAdminAccessDuringMaintenance && authorization) {
             const token = authorization.split(" ")[1];
             try {
-                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const decoded = jwt.verify(token, env.jwt.secret);
                 if (decoded.role === "admin") return next();
             } catch {
                 // Let maintenance response handle invalid or expired tokens.
