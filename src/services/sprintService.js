@@ -7,10 +7,14 @@ const { StatusCodes } = require("http-status-codes");
 const createSprintService = async (projectId, sprintData, userId) => {
     const { name, startDate, endDate, goal } = sprintData;
 
-    // Kiểm tra user có quyền truy cập project không
+    // Kiểm tra user có quyền leader project không
     const project = await projectDAO.checkMemberExists(projectId, userId);
     if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find((m) => m.accountId.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can create sprints.");
     }
 
     // Kiểm tra trùng tên sprint trong project
@@ -56,10 +60,14 @@ const updateSprintService = async (sprintId, updateData, userId) => {
         throw new ApiError(StatusCodes.FORBIDDEN, "The Backlog cannot be modified.");
     }
 
-    // Kiểm tra user có quyền truy cập project không
+    // Kiểm tra user có quyền leader project không
     const project = await projectDAO.checkMemberExists(sprint.projectId, userId);
     if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find((m) => m.accountId.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can modify sprints.");
     }
 
     // Nếu đổi tên, kiểm tra trùng tên trong project
@@ -106,10 +114,14 @@ const deleteSprintService = async (sprintId, userId) => {
         throw new ApiError(StatusCodes.FORBIDDEN, "The Backlog cannot be deleted.");
     }
 
-    // Kiểm tra user có quyền truy cập project không
+    // Kiểm tra user có quyền leader project không
     const project = await projectDAO.checkMemberExists(sprint.projectId, userId);
     if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find((m) => m.accountId.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can delete sprints.");
     }
 
     // Chuyển issue trong sprint bị xóa về backlog
@@ -133,9 +145,13 @@ const startSprintService = async (sprintId, userId) => {
     }
 
     // Kiểm tra quyền truy cập
-    const hasAccess = await projectDAO.checkMemberExists(sprint.projectId, userId);
-    if (!hasAccess) {
+    const project = await projectDAO.checkMemberExists(sprint.projectId, userId);
+    if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find((m) => m.accountId.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can start a sprint.");
     }
 
     // Sprint phải ở trạng thái 'pending'
@@ -172,9 +188,13 @@ const completeSprintService = async (sprintId, userId) => {
     }
 
     // Kiểm tra quyền truy cập
-    const hasAccess = await projectDAO.checkMemberExists(sprint.projectId, userId);
-    if (!hasAccess) {
+    const project = await projectDAO.checkMemberExists(sprint.projectId, userId);
+    if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find((m) => m.accountId.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can complete a sprint.");
     }
 
     // Sprint phải ở trạng thái 'active'
