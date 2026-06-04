@@ -5,6 +5,7 @@ const issueDAO = require("../DAO/issueDAO");
 const historyDAO = require("../DAO/historyDAO");
 const commentDAO = require("../DAO/commentDAO");
 const workflowDAO = require("../DAO/workflowDAO");
+const bottleneckDAO = require("../DAO/bottleneckDAO");
 const jwt = require("jsonwebtoken");
 const { sendInvitationEmail } = require("../utils/mailer");
 const ApiError = require("../utils/ApiError");
@@ -119,12 +120,9 @@ const updateProjectService = async (projectId, updateData, userId, userRole) => 
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
 
-    // Kiểm tra quyền: phải là member hoặc admin
-    if (userRole !== "admin") {
-        const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-        if (!isMember) {
-            throw new ApiError(StatusCodes.FORBIDDEN, "Only project members or admin can update project");
-        }
+    const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can update project.");
     }
 
     // Nếu update name, kiểm tra trùng tên trong các project của user
@@ -197,9 +195,9 @@ const deleteProjectService = async (projectId, userId, userRole) => {
 
     // Chỉ admin hoặc member mới được xóa
     if (userRole !== "admin") {
-        const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-        if (!isMember) {
-            throw new ApiError(StatusCodes.FORBIDDEN, "Only project members or admin can delete project");
+        const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+        if (!leader || leader.role !== "leader") {
+            throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader or admin can delete project.");
         }
     }
 
@@ -210,7 +208,8 @@ const deleteProjectService = async (projectId, userId, userRole) => {
     // Xóa tất cả các dữ liệu liên quan
     if (issueIds.length > 0) {
         await commentDAO.deleteManyComments({ issueId: { $in: issueIds } });
-        await historyDAO.deleteManyHistories({ issueId: { $in: issueIds } }); // <-- THÊM DÒNG NÀY
+        await historyDAO.deleteManyHistories({ issueId: { $in: issueIds } });
+        await bottleneckDAO.deleteManyBottlenecks({ issueId: { $in: issueIds } });
     }
 
     await issueDAO.deleteManyIssues({ projectId });
@@ -337,9 +336,9 @@ const updateBoardColumnsService = async (projectId, userId, boardColumns) => {
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
 
-    const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-    if (!isMember) {
-        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members or admin can update board columns.");
+    const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can update board columns.");
     }
 
     if (!Array.isArray(boardColumns)) {
@@ -393,10 +392,10 @@ const deleteBoardColumnService = async (projectId, userId, columnName, targetCol
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
 
-    // Kiểm tra quyền: chỉ member mới được xóa
-    const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-    if (!isMember) {
-        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members can delete columns.");
+    // Kiểm tra quyền: chỉ leader mới được xóa
+    const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can delete columns.");
     }
 
     // Không cho phép xóa cột "Done"
@@ -467,9 +466,9 @@ const updateIssueTypesService = async (projectId, userId, issueTypes) => {
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
 
-    const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-    if (!isMember) {
-        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members or admin can update issue types.");
+    const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can update issue types.");
     }
 
     if (!Array.isArray(issueTypes)) {
@@ -491,10 +490,10 @@ const deleteIssueTypeService = async (projectId, userId, typeName, targetTypeNam
         throw new ApiError(StatusCodes.NOT_FOUND, "Project not found");
     }
 
-    // Kiểm tra quyền: chỉ member/leader mới được xóa (hoặc set strict hơn tùy bạn)
-    const isMember = project.members.some((m) => m.accountId._id.toString() === userId.toString());
-    if (!isMember) {
-        throw new ApiError(StatusCodes.FORBIDDEN, "Only project members can delete issue types.");
+    // Kiểm tra quyền: chỉ leader mới được xóa
+    const leader = project.members.find((m) => m.accountId._id.toString() === userId.toString());
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can delete issue types.");
     }
 
     // Không cho phép xóa cụm "Task" mặc định (bắt buộc phải có)
@@ -740,6 +739,7 @@ const createSmartProjectService = async (suggestion, creatorId, isAiDraft = fals
                 reporterId: creatorId,
                 startDate: issueStartDate,
                 dueDate: issueDueDate,
+                requiredSkills: issueItem.requiredSkills || [],
                 timeExpect: (issueItem.storyPoints || 1) * 4 // 1 story point = 4 hours
             });
 

@@ -27,12 +27,8 @@ const defaultSettings = {
   lockAccountDurationMinutes: 15,
   sessionTimeoutMinutes: 60,
   requireStrongPassword: true,
-  enableBottleneckDetection: true,
-  warningThresholdHours: 24,
-  criticalThresholdHours: 48,
-  autoDetectSchedule: "Every 6 hours",
-  enableBottleneckNotification: true,
-  enableReportGeneration: true,
+
+  draftCleanupTime: "03:00",
   maintenanceMode: false,
   maintenanceMessage:
     "TASKA is currently under maintenance. Please try again later.",
@@ -102,16 +98,10 @@ const validateSettings = (settings) => {
       "Session timeout must be between 5 and 1440 minutes",
     );
   }
-  if (settings.warningThresholdHours < 1) {
+  if (settings.draftCleanupTime && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(settings.draftCleanupTime)) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
-      "Warning threshold must be at least 1 hour",
-    );
-  }
-  if (settings.criticalThresholdHours < settings.warningThresholdHours) {
-    throw new ApiError(
-      StatusCodes.BAD_REQUEST,
-      "Critical threshold must be greater than or equal to warning threshold",
+      "Draft cleanup time must be in HH:MM format (00:00 - 23:59)",
     );
   }
 };
@@ -149,6 +139,12 @@ const updateSystemSettingsService = async (data, updatedBy) => {
     { $set: { ...updateData, updatedBy } },
     { returnDocument: "after", upsert: true, runValidators: true },
   );
+  try {
+    const { setupDraftCleanupJob } = require("./cronService");
+    await setupDraftCleanupJob();
+  } catch (err) {
+    console.error("Failed to reschedule draft cleanup job:", err);
+  }
   return normalizeSettings(settings);
 };
 
@@ -158,6 +154,12 @@ const resetSystemSettingsService = async (updatedBy) => {
     { $set: { ...defaultSettings, updatedBy } },
     { returnDocument: "after", upsert: true, runValidators: true },
   );
+  try {
+    const { setupDraftCleanupJob } = require("./cronService");
+    await setupDraftCleanupJob();
+  } catch (err) {
+    console.error("Failed to reschedule draft cleanup job after reset:", err);
+  }
   return normalizeSettings(settings);
 };
 

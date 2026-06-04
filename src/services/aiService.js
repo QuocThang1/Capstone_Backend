@@ -1,3 +1,4 @@
+const Groq = require("groq-sdk");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const issueDAO = require("../DAO/issueDAO");
 const projectDAO = require("../DAO/projectDAO");
@@ -7,6 +8,7 @@ const { StatusCodes } = require("http-status-codes");
 const { env } = require("../config/env");
 
 const genAI = new GoogleGenerativeAI(env.ai.geminiApiKey);
+const groq = new Groq({ apiKey: env.ai.groqApiKey });
 
 const suggestAssigneesForIssue = async (issueId, userId) => {
     const issue = await issueDAO.getIssueById(issueId);
@@ -67,19 +69,19 @@ const suggestAssigneesForIssue = async (issueId, userId) => {
     }`;
 
     try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            generationConfig: { responseMimeType: "application/json" }
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" }
         });
 
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+        const responseText = chatCompletion.choices[0]?.message?.content || "";
 
         // Parse JSON Result
         const aiAnalysis = JSON.parse(responseText);
-        return aiAnalysis.recommendations;
+        return aiAnalysis.recommendations || [];
     } catch (error) {
-        console.error("Gemini AI Error: ", error);
+        console.error("Groq AI Error: ", error);
         throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to analyze suggestions via AI.");
     }
 };
@@ -98,6 +100,7 @@ USER'S PROJECT DESCRIPTION:
 You MUST respond with a raw valid JSON object matching this EXACT schema. Do not include markdown blocks.
 
 RULES:
+0. STRICT COMPLIANCE: If the USER'S PROJECT DESCRIPTION specifies exact details (e.g., specific project name, exact board columns, exact issue types, number of sprints, or specific tasks), you MUST prioritize and implement those exact requests, overriding any default rules below.
 1. "project.name": A concise, professional project name (max 50 chars).
 2. "project.key": 2-5 uppercase letters derived from the project name (e.g., "HRM", "SHOP", "CMS"). Must match /^[A-Z]{2,5}$/.
 3. "project.description": A brief project description (1-2 sentences).
@@ -113,6 +116,7 @@ RULES:
    - "priority": One of ["Highest", "High", "Medium", "Low", "Lowest"].
    - "storyPoints": Integer 1-8 based on complexity.
    - "durationDays": Integer 1-7 based on how many days it should take.
+   - "requiredSkills": Array of strings (e.g. ["React", "Node.js", "Design", "DevOps"]) specifying skills needed for the issue.
    - "sprintIndex": Index into the sprints array (0-based). Use null for Backlog.
    - "subtasks": Array of 0-3 subtasks. Each subtask has "title", "description", "priority", "storyPoints", "durationDays". Subtask type is always "Sub-task" (handled by system, don't include type field).
 10. Respond must be in English
@@ -139,6 +143,7 @@ JSON SCHEMA:
     "priority": "string",
     "storyPoints": number,
     "durationDays": number,
+    "requiredSkills": ["string"],
     "sprintIndex": number | null,
     "subtasks": [{
       "title": "string",
@@ -151,13 +156,13 @@ JSON SCHEMA:
 }`;
 
     try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            generationConfig: { responseMimeType: "application/json" }
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: systemPrompt }],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" }
         });
 
-        const result = await model.generateContent(systemPrompt);
-        const responseText = result.response.text();
+        const responseText = chatCompletion.choices[0]?.message?.content || "";
         const suggestion = JSON.parse(responseText);
 
         // Validate cấu trúc cơ bản trả về từ AI
@@ -170,7 +175,7 @@ JSON SCHEMA:
 
         return suggestion;
     } catch (error) {
-        console.error("Gemini AI Smart Project Error: ", error);
+        console.error("Groq AI Smart Project Error: ", error);
         if (error instanceof ApiError) throw error;
         throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Failed to generate project suggestion via AI. Please try again.");
     }

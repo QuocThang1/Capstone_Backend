@@ -57,7 +57,7 @@ const generateDueIssueNotifications = async (io, projectId) => {
 
                 // Nếu khởi tạo thành công (không bị lỗi trùng lặp dữ liệu), sẽ gửi realtime qua socket
                 if (io) {
-                    io.to(`user_${issue.assigneeId._id.toString()}`).emit('new_notification', newNotif);
+                    io.to(`user_${issue.assigneeId._id.toString()}`).emit('new_notification', populatedNotif);
                 }
             } catch (error) {
                 // Mã lỗi 11000 = unique duplicate key -> Bỏ qua lỗi này vì nó đồng nghĩa trong hôm nay báo cáo này ĐÃ ĐƯỢC GỬI.

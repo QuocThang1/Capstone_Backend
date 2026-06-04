@@ -7,8 +7,12 @@ const createWorkflowService = async (projectId, workflowData, userId) => {
     const { name, transitions } = workflowData;
 
     const project = await projectDAO.getProjectById(projectId);
-    if (!project || !project.members.some(m => m.accountId.equals(userId))) {
+    if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find(m => m.accountId.equals(userId));
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can create workflows.");
     }
 
     const existingWorkflow = await workflowDAO.findWorkflowByName(projectId, name);
@@ -40,6 +44,12 @@ const getWorkflowByIdService = async (workflowId, userId) => {
 const updateWorkflowService = async (workflowId, updateData, userId) => {
     const workflow = await getWorkflowByIdService(workflowId, userId); // Re-uses access check
 
+    const project = await projectDAO.getProjectById(workflow.projectId);
+    const leader = project.members.find(m => m.accountId.equals(userId));
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can update workflows.");
+    }
+
     if (updateData.name && updateData.name !== workflow.name) {
         const existing = await workflowDAO.findWorkflowByName(workflow.projectId, updateData.name);
         if (existing) {
@@ -53,8 +63,13 @@ const updateWorkflowService = async (workflowId, updateData, userId) => {
 const deleteWorkflowService = async (workflowId, userId) => {
     const workflow = await getWorkflowByIdService(workflowId, userId); // Re-uses access check
 
-    // Prevent deleting the active workflow
     const project = await projectDAO.getProjectById(workflow.projectId);
+    const leader = project.members.find(m => m.accountId.equals(userId));
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can delete workflows.");
+    }
+
+    // Prevent deleting the active workflow
     if (project.activeWorkflowId && project.activeWorkflowId.equals(workflowId)) {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Cannot delete the active workflow. Please switch to another workflow first.");
     }
@@ -65,8 +80,12 @@ const deleteWorkflowService = async (workflowId, userId) => {
 
 const applyWorkflowToProjectService = async (projectId, workflowId, userId) => {
     const project = await projectDAO.getProjectById(projectId);
-    if (!project || !project.members.some(m => m.accountId.equals(userId))) {
+    if (!project) {
         throw new ApiError(StatusCodes.FORBIDDEN, "You don't have access to this project.");
+    }
+    const leader = project.members.find(m => m.accountId.equals(userId));
+    if (!leader || leader.role !== "leader") {
+        throw new ApiError(StatusCodes.FORBIDDEN, "Only project leader can apply workflows.");
     }
 
     if (workflowId) { // Allow un-applying workflow by passing null/undefined
