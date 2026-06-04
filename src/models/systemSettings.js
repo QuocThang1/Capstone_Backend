@@ -33,12 +33,8 @@ const systemSettingsSchema = new mongoose.Schema(
         sessionTimeoutMinutes: { type: Number, default: 60 },
         requireStrongPassword: { type: Boolean, default: true },
 
-        enableBottleneckDetection: { type: Boolean, default: true },
-        warningThresholdHours: { type: Number, default: 24 },
-        criticalThresholdHours: { type: Number, default: 48 },
-        autoDetectSchedule: { type: String, default: "Every 6 hours" },
-        enableBottleneckNotification: { type: Boolean, default: true },
-        enableReportGeneration: { type: Boolean, default: true },
+
+        draftCleanupTime: { type: String, default: "03:00" },
 
         maintenanceMode: { type: Boolean, default: false },
         maintenanceMessage: {
