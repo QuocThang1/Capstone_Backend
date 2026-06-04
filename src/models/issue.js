@@ -91,6 +91,12 @@ const issueSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        evaluation: {
+            rating: { type: Number, min: 1, max: 5, default: null }, // Đánh giá sao (1-5)
+            feedback: { type: String, default: null }, // Lời nhận xét
+            evaluatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Account", default: null }, // Người đánh giá (Leader)
+            evaluatedAt: { type: Date, default: null } // Thời gian đánh giá
+        },
     },
     {
         timestamps: true,
