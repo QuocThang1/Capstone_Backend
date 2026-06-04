@@ -33,3 +33,6 @@ steps:
 
 images:
   - 'asia-southeast1-docker.pkg.dev/$PROJECT_ID/taska/taska-backend:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
