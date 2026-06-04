@@ -18,6 +18,7 @@ const {
     createSmartProject,
     confirmSmartProject
 } = require("../controllers/projectController");
+const { getBurndownChart, getIssueTypeChart, getWorkloadChart, getVelocityChart } = require("../controllers/chartController");
 const auth = require("../middleware/auth");
 
 const routerAPI = express.Router();
@@ -34,6 +35,12 @@ routerAPI.post("/respond-invite", respondToInvitation);
 routerAPI.get("/:projectId", getProjectById);
 routerAPI.put("/:projectId", updateProject);
 routerAPI.delete("/:projectId", deleteProject);
+
+// Charts
+routerAPI.get("/:projectId/charts/burndown", getBurndownChart);
+routerAPI.get("/:projectId/charts/issue-type", getIssueTypeChart);
+routerAPI.get("/:projectId/charts/workload", getWorkloadChart);
+routerAPI.get("/:projectId/charts/velocity", getVelocityChart);
 
 // Project Members
 routerAPI.post("/:projectId/members", addMember);
