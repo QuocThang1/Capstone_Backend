@@ -307,7 +307,7 @@ const removeMemberService = async (projectId, requesterId, memberIdToRemove) => 
     // Hủy bỏ việc giao task hiện tại. Những task đã giao cho người này sẽ trả về Unassigned (null)
     await issueDAO.updateManyIssues(
         { projectId, assigneeId: memberIdToRemove },
-        { update: { $set: { assigneeId: null } } } // Mongoose update
+        { $set: { assigneeId: null } }
     );
 
     return { message: "Member removed successfully." };
