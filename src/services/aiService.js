@@ -87,8 +87,15 @@ const suggestAssigneesForIssue = async (issueId, userId) => {
 };
 
 const generateProjectSuggestion = async (prompt) => {
-    if (!prompt || prompt.trim().length < 10) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Please provide a more detailed project description (at least 10 characters).");
+    const trimmedPrompt = prompt ? prompt.trim() : "";
+
+    if (trimmedPrompt.length < 15 || trimmedPrompt.length > 1000) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Vui lòng mô tả dự án rõ ràng hơn (từ 15 đến 1000 ký tự).");
+    }
+
+    // Chặn chuỗi lặp lại liên tục hoặc chuỗi dài không có khoảng trắng
+    if (/^(.)\1+$/.test(trimmedPrompt) || (trimmedPrompt.length >= 30 && trimmedPrompt.indexOf(" ") === -1)) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, "Yêu cầu không hợp lệ. Vui lòng cung cấp mô tả dự án thực tế.");
     }
 
     const systemPrompt = `You are an expert Agile Project Manager and Software Architect. 
@@ -100,6 +107,10 @@ USER'S PROJECT DESCRIPTION:
 You MUST respond with a raw valid JSON object matching this EXACT schema. Do not include markdown blocks.
 
 RULES:
+CRITICAL: First, evaluate if the USER'S PROJECT DESCRIPTION is a genuine request to create a software, business, or task management project.
+If the request is gibberish, an insult, a joke, or completely unrelated to project management (e.g., 'tell me a story', 'how to cook', 'hello'), you MUST set "isValidProjectRequest": false and provide a polite explanation in "message" (In the same language as the request.). Leave the rest of the fields empty.
+If the request is valid, set "isValidProjectRequest": true, "message": "Success", and generate the project configuration as usual.
+
 0. STRICT COMPLIANCE: If the USER'S PROJECT DESCRIPTION specifies exact details (e.g., specific project name, exact board columns, exact issue types, number of sprints, or specific tasks), you MUST prioritize and implement those exact requests, overriding any default rules below.
 1. "project.name": A concise, professional project name (max 50 chars).
 2. "project.key": 2-5 uppercase letters derived from the project name (e.g., "HRM", "SHOP", "CMS"). Must match /^[A-Z]{2,5}$/.
@@ -108,14 +119,14 @@ RULES:
 5. "project.issueTypes": Always include "Task" and "Bug". Add 1-2 more relevant types (e.g., "Story", "Feature", "Improvement"). Each needs "name" and "description".
 6. "workflow.name": "<ProjectName> Workflow".
 7. "workflow.transitions": Define allowed status transitions. "from" and "to" values MUST exactly match boardColumn names. Every column must appear as "from" at least once. "Done" should be able to transition back to the first column.
-8. "sprints": Create 2-4 sprints with meaningful names and goals. Each sprint has "name", "goal", and "durationDays" (e.g., 14 or 21). Do NOT include a "Backlog" sprint (it is auto-created).
+8. "sprints": Create 2-4 sprints with meaningful names and goals, ORDERED CHRONOLOGICALLY from earliest to latest. The first sprint in the array must be the earliest and will become the currently active sprint. Each sprint has "name", "goal", and "durationDays" (e.g., 7 or 14 or 21). Do NOT include a "Backlog" sprint (it is auto-created).
 9. "issues": Create 8-15 meaningful issues that cover the core work of the project.
    - "title": Clear, actionable title.
    - "description": 1-2 sentences explaining the work.
    - "type": MUST match one of the issueTypes names you defined.
    - "priority": One of ["Highest", "High", "Medium", "Low", "Lowest"].
    - "storyPoints": Integer 1-8 based on complexity.
-   - "durationDays": Integer 1-7 based on how many days it should take.
+   - "durationDays": Integer. MUST be logically aligned with storyPoints (1 story point = 4 working hours). Set durationDays to be slightly larger than the required working days to include a buffer (e.g., 2 story points = 8 hours = 1 working day, so durationDays should be 2 or 3). Max 14 days.
    - "requiredSkills": Array of strings (e.g. ["React", "Node.js", "Design", "DevOps"]) specifying skills needed for the issue.
    - "sprintIndex": Index into the sprints array (0-based). Use null for Backlog.
    - "subtasks": Array of 0-3 subtasks. Each subtask has "title", "description", "priority", "storyPoints", "durationDays". Subtask type is always "Sub-task" (handled by system, don't include type field).
@@ -124,6 +135,8 @@ RULES:
 
 JSON SCHEMA:
 {
+  "isValidProjectRequest": boolean,
+  "message": "string",
   "project": {
     "name": "string",
     "key": "string",
@@ -164,6 +177,10 @@ JSON SCHEMA:
 
         const responseText = chatCompletion.choices[0]?.message?.content || "";
         const suggestion = JSON.parse(responseText);
+
+        if (suggestion.isValidProjectRequest === false) {
+            throw new ApiError(StatusCodes.BAD_REQUEST, suggestion.message || "Yêu cầu không hợp lệ.");
+        }
 
         // Validate cấu trúc cơ bản trả về từ AI
         if (!suggestion.project || !suggestion.workflow || !suggestion.sprints || !suggestion.issues) {
