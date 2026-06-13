@@ -305,10 +305,7 @@ const removeMemberService = async (projectId, requesterId, memberIdToRemove) => 
     await projectDAO.removeMember(projectId, memberIdToRemove);
 
     // Hủy bỏ việc giao task hiện tại. Những task đã giao cho người này sẽ trả về Unassigned (null)
-    await issueDAO.updateManyIssues(
-        { projectId, assigneeId: memberIdToRemove },
-        { $set: { assigneeId: null } }
-    );
+    await issueDAO.updateManyIssues({ projectId, assigneeId: memberIdToRemove }, { $set: { assigneeId: null } });
 
     return { message: "Member removed successfully." };
 };
@@ -478,6 +475,14 @@ const updateIssueTypesService = async (projectId, userId, issueTypes) => {
     // Logic tương tự cho issue types
     if (new Set(issueTypes.map((type) => type.name)).size < issueTypes.length) {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Issue type names must be unique.");
+    }
+
+    // Cập nhật tên type cho các issue hiện có
+    for (const oldType of project.issueTypes) {
+        const newType = issueTypes.find((t) => t._id && t._id.toString() === oldType._id.toString());
+        if (newType && newType.name !== oldType.name) {
+            await issueDAO.updateManyIssues({ projectId: projectId, type: oldType.name }, { $set: { type: newType.name } });
+        }
     }
 
     const updatedProject = await projectDAO.updateProject(projectId, { issueTypes });
