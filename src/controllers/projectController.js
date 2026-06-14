@@ -17,7 +17,7 @@ const {
     createSmartProjectService
 } = require("../services/projectService");
 const { generateProjectSuggestion } = require("../services/aiService");
-const { rescheduleProjectCrons } = require('../services/cronService');
+const { rescheduleProjectCrons } = require("../services/cronService");
 const { StatusCodes } = require("http-status-codes");
 
 const createProject = async (req, res, next) => {
@@ -80,7 +80,7 @@ const updateProject = async (req, res, next) => {
 
         const project = await updateProjectService(projectId, updateData, userId, userRole);
 
-        const io = req.app.get('io');
+        const io = req.app.get("io");
         if (io && project) {
             rescheduleProjectCrons(project, io);
         }
@@ -124,7 +124,9 @@ const addMember = async (req, res, next) => {
         const result = await addMemberService(projectId, inviterId, email, role);
 
         res.status(StatusCodes.OK).json({ EC: 0, EM: result.message });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 const respondToInvitation = async (req, res, next) => {
@@ -140,7 +142,9 @@ const respondToInvitation = async (req, res, next) => {
             EM: result.message || "Success",
             data: result.members || null
         });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 const removeMember = async (req, res, next) => {
@@ -151,7 +155,9 @@ const removeMember = async (req, res, next) => {
         const result = await removeMemberService(projectId, requesterId, accountId);
 
         res.status(StatusCodes.OK).json({ EC: 0, EM: result.message });
-    } catch (error) { next(error); }
+    } catch (error) {
+        next(error);
+    }
 };
 
 const getProjectMembers = async (req, res, next) => {

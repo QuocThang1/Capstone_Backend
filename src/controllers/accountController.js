@@ -1,3 +1,4 @@
+const accountDAO = require("../DAO/accountDAO");
 const {
     handleSignUpService,
     handleLoginService,
@@ -119,6 +120,7 @@ const updateProfile = async (req, res, next) => {
 const sendOTP = async (req, res, next) => {
     try {
         const email = normalizeEmail(req.body.email);
+        const type = req.body.type || 'register';
         const settings = await getOrCreateSystemSettings();
 
         if (!email) {
@@ -127,6 +129,24 @@ const sendOTP = async (req, res, next) => {
                 EM: "Email is required"
             });
         }
+
+        // Check if email exists
+        const existingUser = await accountDAO.findByEmail(email);
+        
+        if (type === 'register' && existingUser) {
+            return res.status(StatusCodes.CONFLICT).json({
+                EC: 1,
+                EM: "Email is already registered"
+            });
+        }
+        
+        if ((type === 'forgot_password' || type === 'change_password') && !existingUser) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                EC: 1,
+                EM: "Email is not registered in the system"
+            });
+        }
+
         if (!settings.enableEmailNotifications || !settings.enableOtpEmail) {
             throw new ApiError(StatusCodes.FORBIDDEN, "OTP email is currently disabled");
         }

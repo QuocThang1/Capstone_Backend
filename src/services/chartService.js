@@ -1,5 +1,6 @@
 const Sprint = require('../models/sprint');
 const Issue = require('../models/issue');
+const Project = require('../models/project');
 const ApiError = require('../utils/ApiError');
 const { StatusCodes } = require('http-status-codes');
 
@@ -19,11 +20,13 @@ const resolveSprint = async (projectId, sprintId) => {
         status: { $in: ['active', 'completed'] } 
     }).select('_id name status').sort({ createdAt: -1 });
 
-    return { sprint, allSprints };
+    const project = await Project.findById(projectId).select('boardColumns issueTypes timezone');
+
+    return { sprint, allSprints, project };
 };
 
 const getBurndownData = async (projectId, sprintId) => {
-    const { sprint, allSprints } = await resolveSprint(projectId, sprintId);
+    const { sprint, allSprints, project } = await resolveSprint(projectId, sprintId);
 
     if (!sprint) {
         return { noData: true, message: "No active or completed sprint found.", allSprints };
@@ -59,8 +62,11 @@ const getBurndownData = async (projectId, sprintId) => {
         const idealPoint = Math.max(0, totalPoints - (pointDropPerDay * i));
         idealData.push(Math.round(idealPoint * 10) / 10);
         
+        const sortedColumns = [...(project?.boardColumns || [])].sort((a, b) => a.order - b.order);
+        const doneStatusName = sortedColumns.length > 0 ? sortedColumns[sortedColumns.length - 1].name : 'Done';
+        
         const pointsCompleted = issues.reduce((sum, issue) => {
-            if (issue.status === 'Done' && issue.completedAt && new Date(issue.completedAt) <= currentDate) {
+            if (issue.status === doneStatusName && issue.completedAt && new Date(issue.completedAt) <= currentDate) {
                 return sum + (issue.storyPoints || 0);
             }
             return sum;
@@ -92,7 +98,7 @@ const getBurndownData = async (projectId, sprintId) => {
 };
 
 const getIssueTypeData = async (projectId, sprintId) => {
-    const { sprint, allSprints } = await resolveSprint(projectId, sprintId);
+    const { sprint, allSprints, project } = await resolveSprint(projectId, sprintId);
 
     if (!sprint) {
         return { noData: true, message: "No active or completed sprint found.", allSprints };
@@ -100,20 +106,17 @@ const getIssueTypeData = async (projectId, sprintId) => {
 
     const issues = await Issue.find({ sprintId: sprint._id });
 
-    const issueTypesCount = {
-        Bug: 0,
-        Task: 0,
-        Story: 0,
-        Epic: 0,
-        Other: 0
-    };
+    const issueTypesCount = {};
+    const validIssueTypes = project?.issueTypes?.map(t => typeof t === 'string' ? t : t.name) || ['Task', 'Bug', 'Story'];
+    validIssueTypes.forEach(t => issueTypesCount[t] = 0);
+    issueTypesCount['Other'] = 0;
 
     issues.forEach(issue => {
-        const type = issue.issueType || issue.type || 'Task';
-        if (issueTypesCount[type] !== undefined) {
+        const type = issue.issueType || issue.type;
+        if (type && issueTypesCount[type] !== undefined) {
             issueTypesCount[type]++;
         } else {
-            issueTypesCount.Other++;
+            issueTypesCount['Other']++;
         }
     });
 
@@ -141,7 +144,7 @@ const getIssueTypeData = async (projectId, sprintId) => {
 };
 
 const getWorkloadData = async (projectId, sprintId) => {
-    const { sprint, allSprints } = await resolveSprint(projectId, sprintId);
+    const { sprint, allSprints, project } = await resolveSprint(projectId, sprintId);
 
     if (!sprint) {
         return { noData: true, message: "No active or completed sprint found.", allSprints };
@@ -149,7 +152,10 @@ const getWorkloadData = async (projectId, sprintId) => {
 
     const issues = await Issue.find({ sprintId: sprint._id }).populate('assigneeId', 'username email fullName');
 
-    const memberWorkload = {}; // { accountId: { name, todo: 0, inprogress: 0, done: 0 } }
+    const memberWorkload = {}; // { accountId: { name, columns: {} } }
+
+    const sortedColumns = [...(project?.boardColumns || [])].sort((a, b) => a.order - b.order);
+    const colNames = sortedColumns.length > 0 ? sortedColumns.map(c => c.name) : ['To Do', 'In Progress', 'Done'];
 
     issues.forEach(issue => {
         const assignee = issue.assigneeId;
@@ -157,32 +163,28 @@ const getWorkloadData = async (projectId, sprintId) => {
         const id = assignee ? assignee._id.toString() : "unassigned";
 
         if (!memberWorkload[id]) {
-            memberWorkload[id] = { name, todo: 0, inprogress: 0, done: 0 };
+            memberWorkload[id] = { name, columns: {} };
+            colNames.forEach(c => memberWorkload[id].columns[c] = 0);
         }
 
         const points = issue.storyPoints || 0;
-        const status = issue.status || 'To Do';
+        const status = issue.status || colNames[0];
 
-        if (status === 'Done') {
-            memberWorkload[id].done += points;
-        } else if (status === 'To Do') {
-            memberWorkload[id].todo += points;
+        if (memberWorkload[id].columns[status] !== undefined) {
+            memberWorkload[id].columns[status] += points;
         } else {
-            // Assume any other status (In Progress, Testing) is In Progress
-            memberWorkload[id].inprogress += points;
+            memberWorkload[id].columns[colNames[0]] += points;
         }
     });
 
     const labels = [];
-    const todoData = [];
-    const inprogressData = [];
-    const doneData = [];
+    const datasetsArray = colNames.map(name => ({ label: name, data: [] }));
 
     Object.values(memberWorkload).forEach(member => {
         labels.push(member.name);
-        todoData.push(member.todo);
-        inprogressData.push(member.inprogress);
-        doneData.push(member.done);
+        colNames.forEach((colName, index) => {
+            datasetsArray[index].data.push(member.columns[colName]);
+        });
     });
 
     return {
@@ -194,17 +196,13 @@ const getWorkloadData = async (projectId, sprintId) => {
         allSprints,
         workloadDistribution: {
             labels,
-            datasets: {
-                todo: todoData,
-                inprogress: inprogressData,
-                done: doneData
-            }
+            datasets: datasetsArray
         }
     };
 };
 
 const getVelocityData = async (projectId, sprintId) => {
-    const { sprint, allSprints } = await resolveSprint(projectId, sprintId);
+    const { sprint, allSprints, project } = await resolveSprint(projectId, sprintId);
 
     if (!sprint) {
         return { noData: true, message: "No active or completed sprint found.", allSprints };
@@ -213,6 +211,9 @@ const getVelocityData = async (projectId, sprintId) => {
     const issues = await Issue.find({ sprintId: sprint._id }).populate('assigneeId', 'username email fullName');
 
     const memberVelocity = {}; // { accountId: { name, assigned: 0, onTime: 0, late: 0 } }
+
+    const sortedColumns = [...(project?.boardColumns || [])].sort((a, b) => a.order - b.order);
+    const doneStatusName = sortedColumns.length > 0 ? sortedColumns[sortedColumns.length - 1].name : 'Done';
 
     issues.forEach(issue => {
         const assignee = issue.assigneeId;
@@ -226,7 +227,7 @@ const getVelocityData = async (projectId, sprintId) => {
         const points = issue.storyPoints || 0;
         memberVelocity[id].assigned += points;
 
-        if (issue.status === 'Done') {
+        if (issue.status === doneStatusName) {
             const completedTime = issue.completedAt ? new Date(issue.completedAt) : new Date();
             // So sánh với dueDate của task, nếu không có thì lấy endDate của sprint
             const dueTime = issue.dueDate ? new Date(issue.dueDate) : (sprint.endDate ? new Date(sprint.endDate) : new Date());
