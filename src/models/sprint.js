@@ -24,6 +24,10 @@ const sprintSchema = new mongoose.Schema(
         },
         goal: {
             type: String
+        },
+        chartSnapshot: {
+            type: Object,
+            default: null
         }
     },
     {
