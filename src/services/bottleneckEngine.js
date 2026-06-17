@@ -1,11 +1,17 @@
 const issueDAO = require("../DAO/issueDAO");
 const bottleneckDAO = require("../DAO/bottleneckDAO");
 const historyDAO = require("../DAO/historyDAO");
+const projectDAO = require("../DAO/projectDAO");
 const { getOrCreateSystemSettings } = require("./adminSettingsService");
+const { sendTaskAlertEmail } = require("../utils/mailer");
+const { env } = require("../config/env");
 
 const checkWaitTimeBottleneck = async (io, projectId) => {
     console.log("Checking Wait Time Bottleneck...");
     const now = new Date();
+
+    const project = await projectDAO.getProjectById(projectId);
+    const projectName = project ? project.name : "Your Project";
 
     const activeIssues = await issueDAO.getIssues({
         projectId: projectId,
@@ -40,11 +46,26 @@ const checkWaitTimeBottleneck = async (io, projectId) => {
                     io.to(projectId.toString()).emit("bottleneck_alert", stagnationRecord);
                 }
 
+                if (issue.assigneeId && issue.assigneeId.email) {
+                    const assigneeName = issue.assigneeId.fullName || issue.assigneeId.username;
+                    const taskLink = `${env.clientUrl}/projects/${projectId}/list?issueId=${issue._id}&intendedUser=${issue.assigneeId._id}`;
+                    sendTaskAlertEmail(
+                        issue.assigneeId.email,
+                        assigneeName,
+                        projectName,
+                        issue.issueKey,
+                        issue.title,
+                        "Stagnation Warning",
+                        "Your task has been stagnant for too long and is at risk of delaying the project. Please start working on it immediately.",
+                        taskLink
+                    ).catch((err) => console.error(`[Mailer] Failed to send stagnation email for ${issue.issueKey}:`, err.message));
+                }
+
                 // Nhánh 2: Quét thắt cổ chai dây chuyền (Bottleneck Alert)
                 if (issue.parentId) {
-                    // issue.parentId có thể là object (do populate) hoặc ObjectId
                     const parentId = issue.parentId._id || issue.parentId;
-                    const fullParentIssue = await issueDAO.getIssueById(parentId);
+                    const parentIssues = await issueDAO.getIssues({ _id: parentId });
+                    const fullParentIssue = parentIssues.length > 0 ? parentIssues[0] : null;
 
                     if (fullParentIssue) {
                         const bottleneckRecord = await bottleneckDAO.createOrUpdateBottleneck({
@@ -58,6 +79,24 @@ const checkWaitTimeBottleneck = async (io, projectId) => {
 
                         if (io) {
                             io.to(projectId.toString()).emit("bottleneck_alert", bottleneckRecord);
+                        }
+
+                        if (fullParentIssue.assigneeId && fullParentIssue.assigneeId.email) {
+                            const parentAssigneeName = fullParentIssue.assigneeId.fullName || fullParentIssue.assigneeId.username;
+                            const taskLink = `${env.clientUrl}/projects/${projectId}/list?issueId=${fullParentIssue._id}&intendedUser=${fullParentIssue.assigneeId._id}`;
+                            const blockerKey = issue.issueKey;
+                            const blockerAssignee = issue.assigneeId ? issue.assigneeId.fullName || issue.assigneeId.username : "Unassigned";
+
+                            sendTaskAlertEmail(
+                                fullParentIssue.assigneeId.email,
+                                parentAssigneeName,
+                                projectName,
+                                fullParentIssue.issueKey,
+                                fullParentIssue.title,
+                                "Bottleneck Alert",
+                                `Your task is currently blocked because the sub-task <strong>${blockerKey}</strong> (assigned to ${blockerAssignee}) has been stagnant for too long. Please coordinate with them to resolve this bottleneck.`,
+                                taskLink
+                            ).catch((err) => console.error(`[Mailer] Failed to send bottleneck email for ${fullParentIssue.issueKey}:`, err.message));
                         }
                     }
                 }

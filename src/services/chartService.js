@@ -3,6 +3,7 @@ const Issue = require("../models/issue");
 const Project = require("../models/project");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
+const moment = require("moment-timezone");
 
 const resolveSprint = async (projectId, sprintId) => {
     let sprint;
@@ -49,41 +50,45 @@ const getBurndownData = async (projectId, sprintId) => {
     const issues = await Issue.find({ sprintId: sprint._id });
     const totalPoints = issues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
 
-    const start = new Date(sprint.startDate);
-    start.setHours(0, 0, 0, 0);
+    const tz = project.timezone || "UTC";
+    const start = moment(sprint.startDate).tz(tz).startOf("day");
+    const end = moment(sprint.endDate).tz(tz).endOf("day");
 
-    const end = new Date(sprint.endDate);
-    end.setHours(23, 59, 59, 999);
-
-    const durationDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    // Lấy số ngày làm tròn
+    const durationDays = Math.ceil(end.diff(start, "hours", true) / 24);
 
     const labels = [];
     const idealData = [];
     const actualData = [];
 
     const pointDropPerDay = durationDays > 0 ? totalPoints / durationDays : 0;
-    const now = new Date();
+    const now = moment().tz(tz);
 
     for (let i = 0; i <= durationDays; i++) {
-        const currentDate = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
-        currentDate.setHours(23, 59, 59, 999);
+        // Cuối ngày i
+        const currentDate = start.clone().add(i, "days").endOf("day");
 
         labels.push(`Day ${i}`);
 
         const idealPoint = Math.max(0, totalPoints - pointDropPerDay * i);
         idealData.push(Math.round(idealPoint * 10) / 10);
 
-        const sortedColumns = [...(project?.boardColumns || [])].sort((a, b) => a.order - b.order);
-        const doneStatusName = sortedColumns.length > 0 ? sortedColumns[sortedColumns.length - 1].name : "Done";
+        const doneStatusName = "Done";
 
         const pointsCompleted = issues.reduce((sum, issue) => {
-            if (issue.status === doneStatusName && issue.completedAt && new Date(issue.completedAt) <= currentDate) {
-                return sum + (issue.storyPoints || 0);
+            if (issue.status === doneStatusName && issue.completedAt) {
+                const completedTime = moment(issue.completedAt).tz(tz);
+                if (completedTime.isSameOrBefore(currentDate)) {
+                    return sum + (issue.storyPoints || 0);
+                }
             }
             return sum;
         }, 0);
 
-        if (currentDate > now && sprint.status === "active") {
+        // Đầu ngày i
+        const startOfDay = start.clone().add(i, "days").startOf("day");
+
+        if (startOfDay.isAfter(now) && sprint.status === "active") {
             actualData.push(null);
         } else {
             actualData.push(totalPoints - pointsCompleted);
@@ -243,8 +248,7 @@ const getVelocityData = async (projectId, sprintId) => {
 
     const memberVelocity = {}; // { accountId: { name, assigned: 0, onTime: 0, late: 0 } }
 
-    const sortedColumns = [...(project?.boardColumns || [])].sort((a, b) => a.order - b.order);
-    const doneStatusName = sortedColumns.length > 0 ? sortedColumns[sortedColumns.length - 1].name : "Done";
+    const doneStatusName = "Done";
 
     issues.forEach((issue) => {
         const assignee = issue.assigneeId;

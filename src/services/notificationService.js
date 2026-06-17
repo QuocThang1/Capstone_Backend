@@ -1,5 +1,8 @@
 const notificationDAO = require("../DAO/notificationDAO");
 const issueDAO = require("../DAO/issueDAO");
+const projectDAO = require("../DAO/projectDAO");
+const { sendTaskAlertEmail } = require("../utils/mailer");
+const { env } = require("../config/env");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 const GlobalInboxNotification = require("../models/globalInboxNotification");
@@ -39,6 +42,9 @@ const generateDueIssueNotifications = async (io, projectId) => {
 
         const todayString = startOfDay.toISOString().split('T')[0];
 
+        const project = await projectDAO.getProjectById(projectId);
+        const projectName = project ? project.name : "Your Project";
+
         const dueIssues = await issueDAO.getDueIssues(startOfDay, endOfDay, projectId);
 
         for (const issue of dueIssues) {
@@ -58,6 +64,25 @@ const generateDueIssueNotifications = async (io, projectId) => {
                 // Nếu khởi tạo thành công (không bị lỗi trùng lặp dữ liệu), sẽ gửi realtime qua socket
                 if (io) {
                     io.to(`user_${issue.assigneeId._id.toString()}`).emit('new_notification', populatedNotif);
+                }
+
+                // Gửi cảnh báo qua Email
+                if (issue.assigneeId && issue.assigneeId.email) {
+                    const assigneeName = issue.assigneeId.fullName || issue.assigneeId.username;
+                    const taskLink = `${env.clientUrl}/projects/${projectId}/list?issueId=${issue._id}&intendedUser=${issue.assigneeId._id}`;
+                    const alertTitle = "Task Due Today";
+                    const alertMessage = "This is a reminder that your task is due today. Please update the status if it has been completed.";
+                    
+                    sendTaskAlertEmail(
+                        issue.assigneeId.email,
+                        assigneeName,
+                        projectName,
+                        issue.issueKey,
+                        issue.title,
+                        alertTitle,
+                        alertMessage,
+                        taskLink
+                    ).catch(err => console.error(`[Mailer] Failed to send due task email for ${issue.issueKey}:`, err.message));
                 }
             } catch (error) {
                 // Mã lỗi 11000 = unique duplicate key -> Bỏ qua lỗi này vì nó đồng nghĩa trong hôm nay báo cáo này ĐÃ ĐƯỢC GỬI.
