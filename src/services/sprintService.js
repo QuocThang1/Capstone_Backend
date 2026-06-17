@@ -1,6 +1,7 @@
 const sprintDAO = require("../DAO/sprintDAO");
 const projectDAO = require("../DAO/projectDAO");
 const issueDAO = require("../DAO/issueDAO");
+const chartService = require("./chartService");
 const ApiError = require("../utils/ApiError");
 const { StatusCodes } = require("http-status-codes");
 
@@ -46,7 +47,6 @@ const getSprintsByProjectService = async (projectId, userId) => {
     return sprints;
 };
 
-
 const updateSprintService = async (sprintId, updateData, userId) => {
     const { name } = updateData;
 
@@ -56,7 +56,7 @@ const updateSprintService = async (sprintId, updateData, userId) => {
     }
 
     // Không cho sửa Backlog
-    if (sprint.name === 'Backlog') {
+    if (sprint.name === "Backlog") {
         throw new ApiError(StatusCodes.FORBIDDEN, "The Backlog cannot be modified.");
     }
 
@@ -87,12 +87,7 @@ const updateSprintService = async (sprintId, updateData, userId) => {
             throw new ApiError(StatusCodes.BAD_REQUEST, "Start date must be before end date.");
         }
 
-        const overlappingSprints = await sprintDAO.findOverlappingSprints(
-            sprint.projectId,
-            checkStartDate,
-            checkEndDate,
-            sprintId
-        );
+        const overlappingSprints = await sprintDAO.findOverlappingSprints(sprint.projectId, checkStartDate, checkEndDate, sprintId);
 
         if (overlappingSprints.length > 0) {
             throw new ApiError(StatusCodes.CONFLICT, `The new dates overlap with sprint "${overlappingSprints[0].name}".`);
@@ -110,7 +105,7 @@ const deleteSprintService = async (sprintId, userId) => {
     }
 
     // Không cho xóa Backlog
-    if (sprint.name === 'Backlog') {
+    if (sprint.name === "Backlog") {
         throw new ApiError(StatusCodes.FORBIDDEN, "The Backlog cannot be deleted.");
     }
 
@@ -125,7 +120,7 @@ const deleteSprintService = async (sprintId, userId) => {
     }
 
     // Chuyển issue trong sprint bị xóa về backlog
-    const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, 'Backlog');
+    const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, "Backlog");
     if (!backlogSprint) {
         throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find the Backlog sprint for this project.");
     }
@@ -155,7 +150,7 @@ const startSprintService = async (sprintId, userId) => {
     }
 
     // Sprint phải ở trạng thái 'pending'
-    if (sprint.status !== 'pending') {
+    if (sprint.status !== "pending") {
         throw new ApiError(StatusCodes.BAD_REQUEST, "Sprint has already been started or completed.");
     }
 
@@ -177,7 +172,7 @@ const startSprintService = async (sprintId, userId) => {
     }
 
     // Cập nhật trạng thái sprint thành 'active'
-    const updatedSprint = await sprintDAO.updateSprint(sprintId, { status: 'active' });
+    const updatedSprint = await sprintDAO.updateSprint(sprintId, { status: "active" });
     return updatedSprint;
 };
 
@@ -198,21 +193,21 @@ const completeSprintService = async (sprintId, userId) => {
     }
 
     // Sprint phải ở trạng thái 'active'
-    if (sprint.status !== 'active') {
+    if (sprint.status !== "active") {
         throw new ApiError(StatusCodes.BAD_REQUEST, "This sprint is not active.");
     }
 
     const allSprintIssues = await issueDAO.getIssues({ sprintId });
 
     //  Lọc ra các task CHA mà đã có trạng thái "Done"
-    const doneParentIssues = allSprintIssues.filter(issue => !issue.parentId && issue.resolution === 'Done');
-    const doneParentIds = doneParentIssues.map(issue => issue._id);
+    const doneParentIssues = allSprintIssues.filter((issue) => !issue.parentId && issue.resolution === "Done");
+    const doneParentIds = doneParentIssues.map((issue) => issue._id);
 
     // Chỉ chặn lỗi nếu các Task Cha đã Done mà subtask bên trong lại chưa Done
     if (doneParentIds.length > 0) {
         const unresolvedSubtasks = await issueDAO.getIssues({
             parentId: { $in: doneParentIds },
-            resolution: { $ne: 'Done' }
+            resolution: { $ne: "Done" }
         });
 
         if (unresolvedSubtasks.length > 0) {
@@ -226,35 +221,42 @@ const completeSprintService = async (sprintId, userId) => {
     // Tìm các issue chưa hoàn thành (Cả cha lẫn subtask lẻ)
     const unresolvedIssues = await issueDAO.getUnresolvedIssuesBySprint(sprintId);
 
+    // Lưu dữ liệu chart
+    const snapshotData = {
+        burndown: await chartService.getBurndownData(sprint.projectId, sprintId),
+        issueType: await chartService.getIssueTypeData(sprint.projectId, sprintId),
+        workload: await chartService.getWorkloadData(sprint.projectId, sprintId),
+        velocity: await chartService.getVelocityData(sprint.projectId, sprintId),
+        capturedAt: new Date()
+    };
+
     if (unresolvedIssues.length > 0) {
-        const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, 'Backlog');
+        const backlogSprint = await sprintDAO.findSprintByName(sprint.projectId, "Backlog");
         if (!backlogSprint) {
             throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Could not find the Backlog sprint for this project.");
         }
 
         // Lấy Id của tất cả issue (chưa hoàn thành) để chuyển đi
-        const issueIdsToMove = unresolvedIssues.map(issue => issue._id);
+        const issueIdsToMove = unresolvedIssues.map((issue) => issue._id);
 
         // Lấy Id của riêng các issue CHA chưa hoàn thành
-        const unresolvedParentIds = unresolvedIssues
-            .filter(issue => !issue.parentId)
-            .map(issue => issue._id);
+        const unresolvedParentIds = unresolvedIssues.filter((issue) => !issue.parentId).map((issue) => issue._id);
 
         // Cập nhật SprintId về Backlog cho Issue chưa xong VÀ toàn bộ các subtask của nó
         await issueDAO.updateManyIssues(
             {
-                $or: [
-                    { _id: { $in: issueIdsToMove } },
-                    { parentId: { $in: unresolvedParentIds } }
-                ],
+                $or: [{ _id: { $in: issueIdsToMove } }, { parentId: { $in: unresolvedParentIds } }],
                 sprintId: sprintId
             },
             { $set: { sprintId: backlogSprint._id } }
         );
     }
 
-    // Cập nhật trạng thái sprint thành 'completed'
-    const completedSprint = await sprintDAO.updateSprint(sprintId, { status: 'completed' });
+    // Cập nhật trạng thái sprint thành 'completed' kèm dữ liệu Snapshot
+    const completedSprint = await sprintDAO.updateSprint(sprintId, {
+        status: "completed",
+        chartSnapshot: snapshotData
+    });
     return {
         sprint: completedSprint,
         movedIssuesCount: unresolvedIssues.length
@@ -270,13 +272,12 @@ const getOccupiedSprintRangesService = async (projectId, userId) => {
     const sprints = await sprintDAO.getSprintsByProjectId(projectId);
 
     return sprints
-        .filter(sprint => sprint.startDate && sprint.endDate)
-        .map(sprint => ({
+        .filter((sprint) => sprint.startDate && sprint.endDate)
+        .map((sprint) => ({
             startDate: sprint.startDate,
             endDate: sprint.endDate
         }));
 };
-
 
 module.exports = {
     createSprintService,
