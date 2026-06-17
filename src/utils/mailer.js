@@ -41,6 +41,32 @@ const sendInvitationEmail = async (toEmail, inviterName, projectName, acceptLink
   return transporterSendMail(mailOptions);
 };
 
+const sendTaskAlertEmail = async (toEmail, assigneeName, projectName, issueKey, title, alertTitle, alertMessage, taskLink) => {
+  const mailOptions = {
+    from: env.mail.from,
+    replyTo: env.mail.replyTo,
+    to: toEmail,
+    subject: `[Taska Alert] ${alertTitle}: ${issueKey}`,
+    html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h2 style="color: #d9534f; margin-top: 0;">${alertTitle}</h2>
+                <p>Hello <strong>${assigneeName}</strong>,</p>
+                <p>${alertMessage}</p>
+                <div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #d9534f; margin: 20px 0;">
+                    <strong>Project:</strong> ${projectName}<br/>
+                    <strong>Task:</strong> [${issueKey}] ${title}
+                </div>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="${taskLink}" style="padding: 12px 25px; background-color: #d9534f; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task Now</a>
+                </div>
+                <p style="color: #999; font-size: 12px; margin-bottom: 0;">This is an automated message from Taska system. Please do not reply directly to this email.</p>
+            </div>
+        `
+  };
+  return transporterSendMail(mailOptions);
+};
+
 module.exports = transporter;
 module.exports.sendSystemMail = sendSystemMail;
 module.exports.sendInvitationEmail = sendInvitationEmail;
+module.exports.sendTaskAlertEmail = sendTaskAlertEmail;
