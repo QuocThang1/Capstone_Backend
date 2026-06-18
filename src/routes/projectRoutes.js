@@ -19,6 +19,7 @@ const {
     confirmSmartProject
 } = require("../controllers/projectController");
 const { getBurndownChart, getIssueTypeChart, getWorkloadChart, getVelocityChart } = require("../controllers/chartController");
+const { exportToExcel, exportToPdf } = require("../controllers/exportController");
 const auth = require("../middleware/auth");
 
 const routerAPI = express.Router();
@@ -27,6 +28,10 @@ routerAPI.use(auth);
 
 routerAPI.post("/ai/create", createSmartProject);
 routerAPI.put("/:projectId/ai-confirm", confirmSmartProject);
+
+// Exports
+routerAPI.get("/:projectId/export/excel", exportToExcel);
+routerAPI.get("/:projectId/export/pdf", exportToPdf);
 
 // Project General
 routerAPI.post("/", createProject);
